@@ -1,0 +1,10 @@
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+build/
+install/
+log/
+test_results/
+*.mcap
+!test/data/*.mcap
