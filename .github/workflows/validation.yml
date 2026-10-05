@@ -1,0 +1,116 @@
+name: validation
+
+# Validation experiment (validation/README.md): does an N-replay noise floor on a replayed recording let the
+# compare step catch injected regressions, and how often does it say "can't tell" (INCONCLUSIVE)?
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - "validation/**"
+      - ".github/workflows/validation.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  generate:
+    name: generate recording (${{ matrix.distro }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - {distro: humble, os: ubuntu-22.04}
+          - {distro: jazzy, os: ubuntu-24.04}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ros-tooling/setup-ros@v0.7
+        with:
+          required-ros-distributions: ${{ matrix.distro }}
+      - name: Install simulation and analysis dependencies
+        run: validation/ci/setup_ros.sh ${{ matrix.distro }} sim
+      - name: Generate recording (TurtleBot3 + nav2 simulation, headless)
+        run: validation/ci/gen_recording.sh ${{ matrix.distro }} "$RUNNER_TEMP/gen"
+      - name: Show simulation logs on failure
+        if: failure()
+        run: tail -n 80 "$RUNNER_TEMP"/gen/*.log || true
+      - name: Upload recording (workflow artifact only, never committed)
+        uses: actions/upload-artifact@v4
+        with:
+          name: recording-${{ matrix.distro }}
+          path: ${{ runner.temp }}/gen/recording
+          retention-days: 3
+          if-no-files-found: error
+
+  replay:
+    name: ${{ matrix.distro }} ${{ matrix.rate }}x rep ${{ matrix.rep }}
+    needs: generate
+    if: ${{ !cancelled() }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        distro: [humble, jazzy]
+        rate: ["0.5", "1.0"]
+        rep: [1, 2, 3]
+        include:
+          - {distro: humble, os: ubuntu-22.04}
+          - {distro: jazzy, os: ubuntu-24.04}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ros-tooling/setup-ros@v0.7
+        with:
+          required-ros-distributions: ${{ matrix.distro }}
+      - name: Install dependencies
+        run: validation/ci/setup_ros.sh ${{ matrix.distro }}
+      - uses: actions/download-artifact@v4
+        with:
+          name: recording-${{ matrix.distro }}
+          path: ${{ runner.temp }}/recording
+      - name: Replay base x6 and the injected regressions
+        run: >
+          validation/ci/run_experiment.sh ${{ matrix.distro }} "$RUNNER_TEMP/recording" ${{ matrix.rate }}
+          "$RUNNER_TEMP/runs" ${{ matrix.rep }}
+      - name: Compare (N=3 and N=5)
+        run: >
+          python3 validation/experiment.py analyze --runs-dir "$RUNNER_TEMP/runs" --distro ${{ matrix.distro }}
+          --rate ${{ matrix.rate }} --config validation/tolerances.yaml
+          --out "result-${{ matrix.distro }}-${{ matrix.rate }}-rep${{ matrix.rep }}.json"
+      - name: Show replay logs on failure
+        if: failure()
+        run: tail -n 40 "$RUNNER_TEMP"/runs/rep*/*.log || true
+      - uses: actions/upload-artifact@v4
+        if: ${{ !cancelled() }}
+        with:
+          name: result-${{ matrix.distro }}-${{ matrix.rate }}-rep${{ matrix.rep }}
+          path: result-*.json
+          retention-days: 14
+          if-no-files-found: error
+
+  aggregate:
+    needs: replay
+    if: ${{ !cancelled() }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install numpy PyYAML mcap mcap-ros2-support
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: result-*
+          path: parts
+          merge-multiple: true
+      - name: Write results/validation.json and results/validation.md
+        run: |
+          python validation/experiment.py aggregate --inputs parts/result-*.json --out-dir results
+          cat results/validation.md >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: validation-results
+          path: results/
+          if-no-files-found: error
