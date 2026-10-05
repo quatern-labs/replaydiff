@@ -7,4 +7,7 @@ install/
 log/
 test_results/
 *.mcap
-!test/data/*.mcap
+*.db3
+runs/
+results/
+.pytest_cache/

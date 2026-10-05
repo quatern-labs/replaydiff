@@ -1,0 +1,19 @@
+[project]
+name = "replaydiff-validation"
+version = "0.0.0"
+description = "Validation experiment for replaydiff (not the replaydiff tool itself)"
+requires-python = ">=3.10"
+license = { text = "Apache-2.0" }
+dependencies = [
+  "numpy",
+  "mcap",
+  "mcap-ros2-support",
+  "PyYAML",
+]
+
+[project.optional-dependencies]
+dev = ["pytest"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests", "validation/tests"]
+pythonpath = ["validation"]
