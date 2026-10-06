@@ -1,0 +1,36 @@
+name: scand-pin
+
+# One-off: find the SCAND (doi:10.18738/T8/0PRYRH, v5.2, CC0-1.0) Jackal bag to pin for the validation experiment.
+# Prints the Dataverse file listing and, for the smallest Jackal bags, file id, name, size, sha256, topics (name, type,
+# count) and the steadiest driving window. Bags are deleted after hashing and never uploaded; the artifact holds only
+# that JSON (no message contents, no image or point-cloud data). The values are then pinned in a follow-up commit.
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - "validation/scand_pin.py"
+      - ".github/workflows/scand-pin.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  pin:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install rosbags numpy   # Apache-2.0, BSD
+      - name: List SCAND files, hash and inspect the smallest Jackal bags
+        run: |
+          python validation/scand_pin.py --top 3 --window 60 --workdir "$RUNNER_TEMP" --out scand-pin.json
+          { echo '```json'; cat scand-pin.json; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: scand-pin
+          path: scand-pin.json
+          retention-days: 14
+          if-no-files-found: error
