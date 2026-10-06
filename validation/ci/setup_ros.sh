@@ -14,7 +14,8 @@ if [ "${2:-}" = "sim" ]; then
     pkgs+=("ros-${distro}-turtlebot3-gazebo" "ros-${distro}-gazebo-ros-pkgs")
     # The ubuntu-22.04 runner image ships libunwind-14-dev, which conflicts with the libunwind-dev that
     # libgoogle-glog-dev (a gazebo dependency) needs; remove it so apt can resolve.
-    sudo apt-get remove -y libunwind-14-dev || true
+    # Purge every preinstalled versioned libunwind-*-dev (not just 14) and let apt drop its dependents.
+    sudo apt-get purge -y 'libunwind-[0-9]*-dev' || true
   else
     pkgs+=("ros-${distro}-nav2-minimal-tb3-sim" "ros-${distro}-ros-gz")
   fi
