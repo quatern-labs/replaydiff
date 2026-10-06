@@ -23,10 +23,13 @@ From GitHub repository and code search and direct reads of each tool's source (O
 | CPFL/ros2b2b | NDT-specific scripts | Not general |
 | evo (trajectory eval) | `associate_trajectories` (t_max_diff 0.01 s), APE/RPE | Trajectories only, no replay, no exit gate. Precedent for matching and pose metrics |
 | driving_log_replayer (Autoware) | Replay with scenario-specific aggregate evaluators | Autoware-bound, judges against criteria, not against a second code version |
+| Artl13/robotrace-dev (MIT, 0.3.0, commit c0bda2c; a read-only mirror of a private repo, per its MIRROR_NOTICE.md) | Python SDK for a hosted service. `src/robotrace/evals.py` `run_against()` downloads a baseline episode's `actions.npz`/`sensors.npz` from the service, calls a user-supplied Python `policy_callable` on each recorded observation, and scores the candidate's actions against the baseline's (`_action_l2_distance()`: mean per-step L2; `_ood_action_share()`: share of steps with a z-score over 3). `robotrace verify check` (`src/robotrace/cli.py` `_cmd_verify_check`, `src/robotrace/verify.py`) exits 0 or 1 on a deploy gate the service evaluates (`POST /api/verify/check`); a scenario passes when the candidate's success flag is true. `src/robotrace/adapters/ros2/_record.py` `record()` writes subscribed topics to a temporary rosbag2 (sqlite3) and uploads it as an episode | Compares actions returned by a Python callable, not a ROS stack at two git refs. Needs the hosted service (API key) for the data and the gate verdict. No per-topic tolerance setting in the SDK source at that commit; the service's gate rules aren't in the repository |
+| darshan-stack/ros2_watch (Apache-2.0, 0.1.0, commit 8bcece7; Python package `robowatch`) | `robowatch diff A B` (`robowatch/cli.py` `diff`, `robowatch/diff_cmd.py` `run_diff()`) reads two MCAP files, computes each topic's message rate from its log times, and prints a table; `_compare_metrics()` labels a rate change over a fixed 10% "significant" | Message rate only, not message values. Compares two existing recordings; doesn't replay one recording through two code versions. No tolerance file. Exits 1 only on an error such as a missing file, not on a rate change |
 
-Conclusion: no existing tool diffs message values between two code versions on the same recording with
-per-topic tolerances and a CI exit code. Everything else in GitHub code search was one-off compare scripts
-inside project repos.
+Conclusion: none of the tools above diffs message values between two code versions on the same recording
+with per-topic tolerances and a CI exit code. Their closest pieces are listed in the table: replay and record
+(replay_testing), policy files and exit codes (rosbag-doctor), and pose matching (evo). Beyond these tools, the
+code search turned up one-off compare scripts inside project repos.
 
 ## Architecture
 ```
