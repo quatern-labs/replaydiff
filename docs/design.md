@@ -23,10 +23,13 @@ From GitHub repository and code search and direct reads of each tool's source (O
 | CPFL/ros2b2b | NDT-specific scripts | Not general |
 | evo (trajectory eval) | `associate_trajectories` (t_max_diff 0.01 s), APE/RPE | Trajectories only, no replay, no exit gate. Precedent for matching and pose metrics |
 | driving_log_replayer (Autoware) | Replay with scenario-specific aggregate evaluators | Autoware-bound, judges against criteria, not against a second code version |
+| Artl13/robotrace-dev (MIT, 0.3.0; read-only mirror of a private repo) | Python SDK and `robotrace` CLI (`cli.py`: `replay run` via `_cmd_replay_run`, `verify check`). `adapters/ros2/_record.py` (`record()`, `_BagWriter.write_message()`) records CDR bytes to an sqlite3 bag and uploads it as an episode, without comparing values. `evals.py` `run_against()` calls a user-supplied `policy_callable` on recorded observations and compares candidate with baseline actions (`_action_l2_distance()`, `_ood_action_share()`) | Policy-level comparison of actions from a Python callable, not a ROS stack at two git refs; no per-topic tolerance file; gating is server-side, not a local CI exit code |
+| darshan-stack/ros2_watch (Apache-2.0, 0.1.0; package `robowatch`) | `robowatch diff` (`diff_cmd.py`) compares per-topic message frequency in Hz and flags changes above a fixed 10% | Frequency only, not message values; no replay of a recording through two code versions; no tolerance file; no exit-code logic |
 
-Conclusion: no existing tool diffs message values between two code versions on the same recording with
-per-topic tolerances and a CI exit code. Everything else in GitHub code search was one-off compare scripts
-inside project repos.
+Conclusion: none of the tools above diffs message values between two code versions on the same recording
+with per-topic tolerances and a CI exit code. Their closest pieces are listed in the table: replay and record
+(replay_testing), policy files and exit codes (rosbag-doctor), and pose matching (evo). Beyond these tools, the
+code search turned up one-off compare scripts inside project repos.
 
 ## Architecture
 ```
