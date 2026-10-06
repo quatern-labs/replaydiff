@@ -6,7 +6,9 @@ set -euo pipefail
 distro="${1:?distro}"; rec="${2:?recording}"; out="${3:?out}"; rate="${4:?rate}"; shift 4
 here="$(cd "$(dirname "$0")" && pwd)"
 # shellcheck disable=SC1090
+set +u  # ROS setup scripts reference unset variables
 source "/opt/ros/${distro}/setup.bash"
+set -u
 rm -rf "$out"
 mkdir -p "$(dirname "$out")"
 pids=()

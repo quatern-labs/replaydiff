@@ -8,7 +8,10 @@ distro="${1:?distro}"
 out="${2:?out_dir}"
 here="$(cd "$(dirname "$0")" && pwd)"
 # shellcheck disable=SC1090
+# ROS setup scripts reference unset variables (e.g. AMENT_TRACE_SETUP_FILES), so relax nounset around them
+set +u
 source "/opt/ros/${distro}/setup.bash"
+set -u
 export TURTLEBOT3_MODEL=waffle
 export LIBGL_ALWAYS_SOFTWARE=1
 mkdir -p "$out"
