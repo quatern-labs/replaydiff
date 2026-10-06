@@ -21,6 +21,8 @@ cleanup() {
   for p in "${pids[@]:-}"; do kill -INT "$p" 2>/dev/null || true; done
   sleep 3
   for p in "${pids[@]:-}"; do kill -TERM "$p" 2>/dev/null || true; done
+  sleep 2
+  for p in "${pids[@]:-}"; do kill -KILL "$p" 2>/dev/null || true; done
 }
 trap cleanup EXIT
 
@@ -28,23 +30,9 @@ xvfb-run -a -s "-screen 0 1280x1024x24" \
   ros2 launch nav2_bringup tb3_simulation_launch.py headless:=True use_rviz:=False > "$out/sim.log" 2>&1 &
 pids+=($!)
 
-# Bounded wait: every ros2 CLI call has its own timeout and the loop has a hard 240 s deadline, so a nav2 that
-# never comes up fails this step with the sim log instead of hanging until the job timeout.
-echo "waiting for nav2 (up to 240 s)"
-deadline=$((SECONDS + 240))
-nav2_up=0
-while [ "$SECONDS" -lt "$deadline" ]; do
-  if timeout 15 ros2 topic list 2>/dev/null | grep -q '^/odom$' \
-     && timeout 15 ros2 action list 2>/dev/null | grep -q navigate_to_pose; then nav2_up=1; break; fi
-  if ! kill -0 "${pids[0]}" 2>/dev/null; then echo "simulation process exited early" >&2; break; fi
-  sleep 2
-done
-if [ "$nav2_up" -ne 1 ]; then
-  echo "ERROR: nav2 did not come up within 240 s (waited for topic /odom and action navigate_to_pose, distro ${distro})." >&2
-  echo "--- last 60 lines of $out/sim.log ---" >&2
-  tail -n 60 "$out/sim.log" >&2 || true
-  exit 1
-fi
+# Bounded wait (wait_nav2.sh): per-call `timeout -k`, a hard 240 s deadline that a stuck call cannot delay, a
+# heartbeat, and on expiry the ERROR line plus the sim log tail and exit 1 (set -e ends this step).
+"$here/wait_nav2.sh" "${pids[0]}" "$out/sim.log" "$distro"
 sleep 20
 
 ros2 bag record -s mcap --use-sim-time -o "$out/recording" /odom /scan /tf /tf_static /cmd_vel /plan > "$out/record.log" 2>&1 &

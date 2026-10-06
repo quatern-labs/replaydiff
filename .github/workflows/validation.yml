@@ -2,8 +2,17 @@ name: validation
 
 # Validation experiment (validation/README.md): does an N-replay noise floor on a replayed recording let the
 # compare step catch injected regressions, and how often does it say "can't tell" (INCONCLUSIVE)?
+#
+# Humble only by default (pull_request and push). Jazzy is known-failing: nav2 does not come up in the headless
+# simulation on ubuntu-24.04. It runs only on a manual workflow_dispatch with include_jazzy=true, with
+# continue-on-error. The distro list below is the single place the matrices are built from.
 on:
   workflow_dispatch:
+    inputs:
+      include_jazzy:
+        description: "Also run the Jazzy jobs (known-failing: nav2 does not come up in the headless sim on ubuntu-24.04)"
+        type: boolean
+        default: false
   pull_request:
     paths:
       - "validation/**"
@@ -13,9 +22,20 @@ permissions:
   contents: read
 
 jobs:
+  # Proves the bound of the nav2 wait with stub processes (no ROS): see validation/ci/test_wait_nav2.sh.
+  wait-bound-test:
+    name: nav2 wait bound test
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - uses: actions/checkout@v4
+      - run: bash -n validation/ci/*.sh
+      - name: Hang case (ros2 ignores SIGTERM, NAV2_WAIT_S=20) must exit 1 within 60 s; pass case must pass
+        run: validation/ci/test_wait_nav2.sh
+
   generate:
     name: generate recording (${{ matrix.distro }})
-    runs-on: ${{ matrix.os }}
+    runs-on: ${{ matrix.distro == 'jazzy' && 'ubuntu-24.04' || 'ubuntu-22.04' }}
     # Official ROS image (Docker Hub "ros"), root, ROS preinstalled: no ros-tooling/setup-ros step (its unauthenticated
     # GitHub API call is rate-limited when many jobs start at once).
     container: ros:${{ matrix.distro }}
@@ -27,14 +47,13 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        include:
-          - {distro: humble, os: ubuntu-22.04}
-          - {distro: jazzy, os: ubuntu-24.04}
+        distro: ${{ fromJSON(inputs.include_jazzy && '["humble","jazzy"]' || '["humble"]') }}
     steps:
       - uses: actions/checkout@v4
       - name: Install simulation and analysis dependencies
         run: validation/ci/setup_ros.sh ${{ matrix.distro }} sim
       - name: Generate recording (TurtleBot3 + nav2 simulation, headless)
+        timeout-minutes: 15
         run: validation/ci/gen_recording.sh ${{ matrix.distro }} "$RUNNER_TEMP/gen"
       - name: Show simulation logs on failure
         if: failure()
@@ -51,7 +70,7 @@ jobs:
     name: ${{ matrix.distro }} ${{ matrix.rate }}x rep ${{ matrix.rep }}
     needs: generate
     if: ${{ !cancelled() }}
-    runs-on: ${{ matrix.os }}
+    runs-on: ${{ matrix.distro == 'jazzy' && 'ubuntu-24.04' || 'ubuntu-22.04' }}
     container: ros:${{ matrix.distro }}
     # Known-failing jazzy: no recording exists because nav2 does not start there (see the generate job).
     continue-on-error: ${{ matrix.distro == 'jazzy' }}
@@ -62,9 +81,7 @@ jobs:
         distro: [humble, jazzy]
         rate: ["0.5", "1.0"]
         rep: [1, 2, 3]
-        include:
-          - {distro: humble, os: ubuntu-22.04}
-          - {distro: jazzy, os: ubuntu-24.04}
+        distro: ${{ fromJSON(inputs.include_jazzy && '["humble","jazzy"]' || '["humble"]') }}
     steps:
       - uses: actions/checkout@v4
       - name: Install dependencies
@@ -94,7 +111,7 @@ jobs:
           if-no-files-found: error
 
   aggregate:
-    needs: replay
+    needs: [replay, wait-bound-test]
     if: ${{ !cancelled() }}
     runs-on: ubuntu-24.04
     timeout-minutes: 10
@@ -113,7 +130,7 @@ jobs:
         run: |
           python validation/experiment.py aggregate --inputs parts/result-*.json --out-dir results
           if ! ls parts/result-jazzy-*.json >/dev/null 2>&1; then
-            note="**Jazzy is known-failing and has no results here:** nav2 does not come up in the headless simulation on ubuntu-24.04 (see the 'generate recording (jazzy)' job). These results are Humble only."
+            note="**Jazzy is not included in this run (it is known-failing and only runs on a manual dispatch with include_jazzy):** nav2 does not come up in the headless simulation on ubuntu-24.04 (see the 'generate recording (jazzy)' job when it runs). These results are Humble only."
             echo "$note"
             printf '%s\n\n' "$note" | cat - results/validation.md > results/validation.tmp && mv results/validation.tmp results/validation.md
           fi

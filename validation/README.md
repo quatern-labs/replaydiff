@@ -58,7 +58,7 @@ silently widen them.
 
 - Unit tests (offline, no ROS, under a minute): `make test`.
 - Experiment: GitHub Actions, workflow `validation` (workflow_dispatch, or a pull request touching `validation/**`).
-  Matrix: Humble on ubuntu-22.04 and Jazzy on ubuntu-24.04, x rates 0.5 / 1.0 x 3 repetitions, 60 min cap per job.
+  Matrix: Humble on ubuntu-22.04 by default (Jazzy on ubuntu-24.04 only on a manual `workflow_dispatch` with `include_jazzy`, `continue-on-error`: known-failing, nav2 does not come up in the headless sim there), x rates 0.5 / 1.0 x 3 repetitions, 60 min cap per job.
   Artifacts: `validation-results` (`results/validation.json`, `results/validation.md`), per-job `result-*`
   files, short-lived `recording-<distro>`.
 - Compare two or more bags yourself:
