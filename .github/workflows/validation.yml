@@ -48,7 +48,7 @@ jobs:
           if-no-files-found: error
 
   replay:
-    name: ${{ matrix.distro }} ${{ matrix.rate }}x rep ${{ matrix.rep }}
+    name: ${{ matrix.distro }} ${{ matrix.rate }}x rep ${{ matrix.rep }}${{ matrix.set == 'near' && ' near-tolerance' || '' }}
     needs: generate
     if: ${{ !cancelled() }}
     runs-on: ${{ matrix.os }}
@@ -62,6 +62,10 @@ jobs:
         distro: [humble, jazzy]
         rate: ["0.5", "1.0"]
         rep: [1, 2, 3]
+        # controls: regressions far past the tolerances; near: 0.5x-1.5x of them (validation/README.md), Humble only
+        set: [controls, near]
+        exclude:
+          - {distro: jazzy, set: near}
         include:
           - {distro: humble, os: ubuntu-22.04}
           - {distro: jazzy, os: ubuntu-24.04}
@@ -76,19 +80,19 @@ jobs:
       - name: Replay base x6 and the injected regressions
         run: >
           validation/ci/run_experiment.sh ${{ matrix.distro }} "$RUNNER_TEMP/recording" ${{ matrix.rate }}
-          "$RUNNER_TEMP/runs" ${{ matrix.rep }}
+          "$RUNNER_TEMP/runs" ${{ matrix.rep }} ${{ matrix.set }}
       - name: Compare (N=3 and N=5)
         run: >
           python3 validation/experiment.py analyze --runs-dir "$RUNNER_TEMP/runs" --distro ${{ matrix.distro }}
-          --rate ${{ matrix.rate }} --config validation/tolerances.yaml
-          --out "result-${{ matrix.distro }}-${{ matrix.rate }}-rep${{ matrix.rep }}.json"
+          --rate ${{ matrix.rate }} --config validation/tolerances.yaml --set ${{ matrix.set }}
+          --out "result-${{ matrix.distro }}-${{ matrix.rate }}-rep${{ matrix.rep }}${{ matrix.set == 'near' && '-near' || '' }}.json"
       - name: Show replay logs on failure
         if: failure()
         run: tail -n 40 "$RUNNER_TEMP"/runs/rep*/*.log || true
       - uses: actions/upload-artifact@v4
         if: ${{ !cancelled() }}
         with:
-          name: result-${{ matrix.distro }}-${{ matrix.rate }}-rep${{ matrix.rep }}
+          name: result-${{ matrix.distro }}-${{ matrix.rate }}-rep${{ matrix.rep }}${{ matrix.set == 'near' && '-near' || '' }}
           path: result-*.json
           retention-days: 14
           if-no-files-found: error

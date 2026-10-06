@@ -26,9 +26,20 @@ replaydiff CLI.
    uses base0-4), plus one replay per injected regression. Repetitions are independent CI jobs (3 per distro and
    rate, each on its own VM). Base-vs-base is judged by treating base3-5 (N=3) or base5 (N=5) as the "head": a
    run that is never part of the base set.
-5. **Injected regressions** (parameter overlays on the same code): `gain10` and `gain30` (`velocity_gain` 1.1 / 1.3),
-   `offset2cm` (`/sut/odom` x offset 0.02 m), `drop_odom` (`/sut/odom` not published).
-6. **Compare.** `compare_proto.py` follows design.md: tolerance fixed, noise = worst base-vs-base p95 over all base
+5. **Injected regressions** (parameter overlays on the same code). Controls, far past the tolerances: `gain10` and
+   `gain30` (`velocity_gain` 1.1 / 1.3), `offset2cm` (`/sut/odom` x offset 0.02 m), `drop_odom` (`/sut/odom` not
+   published). Near the tolerances (Humble only, in separate `near-tolerance` jobs with their own 6 base replays):
+   `gain_x0.5/0.75/1.0/1.5` (`velocity_gain` 1.025 / 1.0375 / 1.05 / 1.075, about 0.5x-1.5x of the 0.01 m/s
+   linear.x tolerance at the 0.2 m/s cruise) and `offset_x0.5/0.75/1.0/1.5` (x offset 0.005 / 0.0075 / 0.010 /
+   0.015 m, 0.5x-1.5x of the 0.01 m translation tolerance).
+6. **Detection curve.** The gain only scales the speed where the controller commands one, so each run's *measured*
+   effect size is computed from the data: head-vs-base p95 / tolerance of the quantity the regression acts on.
+   Verdicts are judged against it: below 0.9x a PASS is correct and a FAIL fired only by the bias-window check is
+   the bias check doing its job (reported as such); 0.9x-1.1x any answer is acceptable; above 1.1x a PASS is a miss.
+   A FAIL below 0.9x from any other check is a false FAIL. The report has one row per regression, rate and N with the
+   measured effect, PASS / FAIL / INCONCLUSIVE counts, which check fired (p95, bias, count, missing), the correct
+   answer and the false-FAIL / miss / INCONCLUSIVE rates.
+7. **Compare.** `compare_proto.py` follows design.md: tolerance fixed, noise = worst base-vs-base p95 over all base
    pairs; noise > 0.5 x tolerance -> INCONCLUSIVE; else FAIL if head p95 > tolerance against every base run (the
    reported value is the smallest); bias-window test (mean signed error per 2 s window must exceed `bias.abs` and 3x
    the RMS of the base-vs-base window biases); message-count check (head count differs by more than 10% from every
@@ -58,7 +69,8 @@ silently widen them.
 
 - Unit tests (offline, no ROS, under a minute): `make test`.
 - Experiment: GitHub Actions, workflow `validation` (workflow_dispatch, or a pull request touching `validation/**`).
-  Matrix: Humble on ubuntu-22.04 and Jazzy on ubuntu-24.04, x rates 0.5 / 1.0 x 3 repetitions, 60 min cap per job.
+  Matrix: Humble on ubuntu-22.04 and Jazzy on ubuntu-24.04, x rates 0.5 / 1.0 x 3 repetitions, 60 min cap per job,
+  plus the same 6 Humble-only `near-tolerance` jobs (artifacts `result-humble-<rate>-rep<n>-near`).
   Artifacts: `validation-results` (`results/validation.json`, `results/validation.md`), per-job `result-*`
   files, short-lived `recording-<distro>`.
 - Compare two or more bags yourself:
