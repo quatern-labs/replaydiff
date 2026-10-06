@@ -1,0 +1,21 @@
+# Tolerances for the validation experiment. Fixed limits: noise never widens them (docs/design.md).
+# Output topics of the system under test (validation/ci/sut.py), recorded with sim time.
+version: 1
+defaults:
+  match: nearest
+  max_dt: 0.02
+  skip_first: 1.0
+  stat: p95
+rate:
+  rel: 0.10
+topics:
+  /sut/cmd_vel:
+    fields:
+      linear.x: {abs: 0.01}     # 5% of the 0.2 m/s cruise speed
+      angular.z: {abs: 0.03}    # rad/s
+    bias: {window: 2.0, abs: 0.005}
+  /sut/odom:
+    match: interpolate
+    max_gap: 0.2
+    pose: {translation: 0.01, rotation_deg: 1.0}   # a 2 cm offset must fail
+    twist: {linear: 0.02, angular: 0.03}
