@@ -6,8 +6,9 @@ import argparse
 import glob
 import json
 import os
+import math
 import sys
-from collections import defaultdict
+from collections import Counter, defaultdict
 
 import compare_proto as cp
 
@@ -15,10 +16,78 @@ N_VALUES = (3, 5)
 N_BASE_RUNS = 6  # base0..base5: N=3 judges base3..base5 as "head", N=5 judges base5 (never a run that is in the base set)
 
 
+# Injected regressions: nominal size as a multiple of the tolerance of the quantity they act on (validation/README.md).
+# gain: linear.x tolerance 0.01 m/s = 5% of the 0.2 m/s cruise; offset: translation tolerance 0.01 m.
+SIZES = {"gain_x0.5": 0.5, "gain_x0.75": 0.75, "gain_x1.0": 1.0, "gain_x1.5": 1.5, "gain10": 2.0, "gain30": 6.0,
+         "offset_x0.5": 0.5, "offset_x0.75": 0.75, "offset_x1.0": 1.0, "offset_x1.5": 1.5, "offset2cm": 2.0}
+TARGET = {"gain": "linear.x", "offset": "pose.translation"}  # family -> the quantity it changes
+ABOUT_1X = (0.9, 1.1)  # measured effect in this band counts as "about 1x": any verdict is acceptable
+
+
+def family_of(name: str | None) -> str | None:
+    return next((f for f in TARGET if name and name.startswith(f)), None)
+
+
+def checks_fired(report: cp.Report) -> list[str]:
+    """Which checks made the verdict FAIL: p95 (head stat > tolerance), bias (window bias), count (message count /
+    rate), missing (topic absent from the head run)."""
+    out = set()
+    for r in report.results:
+        if r.verdict != "FAIL":
+            continue
+        why = " ".join(r.reasons)
+        if "missing" in why:
+            out.add("missing")
+        elif r.quantity == "rate":
+            out.add("count")
+        if "> tolerance" in why:
+            out.add("p95")
+        if "window bias" in why:
+            out.add("bias")
+    return sorted(out)
+
+
+def effect_of(report: cp.Report, regression: str | None) -> float | None:
+    """Measured effect size: head-vs-base p95 / tolerance of the quantity the regression acts on. The gain only
+    scales the speed where the controller commands one, so this can be smaller than the nominal size."""
+    q = TARGET.get(family_of(regression))
+    rows = [r for r in report.results if r.quantity == q and r.head_error is not None and r.tolerance]
+    return max((r.head_error / r.tolerance for r in rows), default=None)
+
+
+def judge(kind: str, family: str | None, verdict: str, effect: float | None, checks: list[str]) -> tuple[str, str]:
+    """(expected answer, outcome) of one verdict, judged on the measured effect. Outcomes: correct; bias (a FAIL
+    below 1x fired only by the bias-window check: the bias check doing its job); acceptable (about 1x: any answer);
+    inconclusive; false_fail (a FAIL where no check was due); miss (PASS above 1x)."""
+    if kind == "base_vs_base":
+        expected = "PASS"
+    elif effect is None:  # a dropped topic (control) has no p95 to measure
+        expected = "FAIL" if family is None else "any"
+    elif effect < ABOUT_1X[0]:
+        expected = "PASS (bias FAIL ok)"
+    elif effect <= ABOUT_1X[1]:
+        expected = "any"
+    else:
+        expected = "FAIL / INCONCLUSIVE"
+    if verdict == "INCONCLUSIVE":
+        return expected, "inconclusive"
+    if expected == "any":
+        return expected, "acceptable"
+    if verdict == "PASS":
+        return expected, "correct" if expected.startswith("PASS") else "miss"
+    if expected.startswith("PASS"):
+        return expected, "bias" if kind == "regression" and checks == ["bias"] else "false_fail"
+    return expected, "correct"
+
+
 def _record(meta: dict, n: int, kind: str, regression: str | None, head: str, report: cp.Report) -> dict:
     h = report.headline()
+    effect, checks = effect_of(report, regression), checks_fired(report)
+    expected, outcome = judge(kind, family_of(regression), report.verdict, effect, checks)
     return {
         **meta, "n": n, "kind": kind, "regression": regression, "head": head,
+        "family": family_of(regression), "nominal": SIZES.get(regression), "effect": effect,
+        "checks": checks, "expected": expected, "outcome": outcome,
         "verdict": report.verdict,
         "quantity": f"{h.topic} {h.quantity}" if h else None,
         "noise": h.noise if h else None,
@@ -73,7 +142,34 @@ def summarize(records: list[dict]) -> dict:
     overall = rates(records)
     overall["success"] = (overall["base_vs_base"]["false_fail"] == 0 and overall["regressions"]["missed"] == 0
                           and overall["regressions"]["total"] > 0)
-    return {"overall": overall, "by_config": by_config}
+    return {"overall": overall, "by_config": by_config, "curve": curve(records)}
+
+
+def curve(records: list[dict]) -> list[dict]:
+    """Detection curve: one row per recording, distro, regression (base-vs-base as size 0), rate and N, with the
+    measured effect, verdict counts, which checks fired and the outcome rates (judge())."""
+    groups = defaultdict(list)
+    for r in records:
+        name = r["regression"] or "base"
+        groups[(r.get("recording", "sim"), r["distro"], r.get("family") or ("base" if name == "base" else name),
+                SIZES.get(name, 0.0 if name == "base" else math.inf), name, r["rate"], r["n"])].append(r)
+    out = []
+    for (rec, distro, _f, nominal, name, rate, n), rows in sorted(groups.items()):
+        eff = sorted(r["effect"] for r in rows if r.get("effect") is not None)
+        oc = Counter(r.get("outcome") for r in rows)
+        checks = Counter(c for r in rows for c in r.get("checks", []))
+        tot = len(rows)
+        out.append({
+            "recording": rec, "distro": distro, "regression": name, "nominal": None if math.isinf(nominal) else nominal,
+            "rate": rate, "n": n, "total": tot,
+            "effect_median": eff[len(eff) // 2] if eff else None, "effect_min": eff[0] if eff else None,
+            "effect_max": eff[-1] if eff else None,
+            "verdicts": {v: sum(1 for r in rows if r["verdict"] == v) for v in ("PASS", "FAIL", "INCONCLUSIVE")},
+            "checks": dict(sorted(checks.items())), "expected": sorted({r.get("expected") for r in rows}),
+            "outcomes": dict(sorted(oc.items())), "false_fail_rate": oc["false_fail"] / tot,
+            "miss_rate": oc["miss"] / tot, "inconclusive_rate": oc["inconclusive"] / tot,
+        })
+    return out
 
 
 def _pct(x):
@@ -104,12 +200,30 @@ def render_md(doc: dict) -> str:
         for name, g in c["per_regression"].items():
             lines.append(f"| {c['distro']} | {c['rate']}x | {c['n']} | {b['total']} | {_pct(b['inconclusive_rate'])} | "
                          f"{b['false_fail']} | {name} | {g['caught']}/{g['total']} | {g['inconclusive']} | {g['missed']} | {_pct(g['catch_rate'])} |")
+    lines += ["", "## Detection curve (regression size relative to the tolerance)", "",
+              "Measured effect = head-vs-base p95 / tolerance of the quantity the regression acts on (median, "
+              "min-max over runs); verdicts are judged on it. Below 1x a PASS is correct and a FAIL fired only by the "
+              "bias-window check is the bias check doing its job; about 1x "
+              f"({ABOUT_1X[0]:g}-{ABOUT_1X[1]:g}) any answer is acceptable; above 1x a PASS is a miss. "
+              "Checks: p95, bias (window bias), count (message count), missing (topic absent).", "",
+              "| recording | distro | regression | nominal | rate | N | measured effect | PASS | FAIL | INCONCL. | checks fired | correct answer | false FAIL | miss | INCONCLUSIVE |",
+              "|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|"]
+    for c in s.get("curve", []):
+        v = c["verdicts"]
+        eff = "-" if c["effect_median"] is None else f"{c['effect_median']:.2f} ({c['effect_min']:.2f}-{c['effect_max']:.2f})"
+        checks = ", ".join(f"{k} {n}" for k, n in c["checks"].items()) or "-"
+        lines.append(f"| {c['recording']} | {c['distro']} | {c['regression']} | {'control' if c['nominal'] is None else format(c['nominal'], 'g') + 'x'} | {c['rate']}x | "
+                     f"{c['n']} | {eff} | {v['PASS']} | {v['FAIL']} | {v['INCONCLUSIVE']} | {checks} | "
+                     f"{' / '.join(c['expected'])} | {_pct(c['false_fail_rate'])} | {_pct(c['miss_rate'])} | "
+                     f"{_pct(c['inconclusive_rate'])} |")
     lines += ["", "## Every verdict", "",
-              "| distro | rate | rep | N | kind | regression / head | verdict | deciding quantity | noise floor | head error | tolerance |",
-              "|---|---|---|---|---|---|---|---|---|---|---|"]
+              "| recording | distro | rate | rep | N | kind | regression / head | verdict | checks fired | measured effect | outcome | deciding quantity | noise floor | head error | tolerance |",
+              "|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|"]
     for r in doc["records"]:
-        lines.append(f"| {r['distro']} | {r['rate']}x | {r['rep']} | {r['n']} | {r['kind']} | {r['regression'] or r['head']} | "
-                     f"{r['verdict']} | {r['quantity'] or '-'} | {_num(r['noise'])} | {_num(r['head_error'])} | {_num(r['tolerance'])} |")
+        lines.append(f"| {r.get('recording', 'sim')} | {r['distro']} | {r['rate']}x | {r['rep']} | {r['n']} | {r['kind']} | "
+                     f"{r['regression'] or r['head']} | {r['verdict']} | {', '.join(r.get('checks', [])) or '-'} | "
+                     f"{_num(r.get('effect'))} | {r.get('outcome', '-')} | {r['quantity'] or '-'} | {_num(r['noise'])} | "
+                     f"{_num(r['head_error'])} | {_num(r['tolerance'])} |")
     return "\n".join(lines) + "\n"
 
 
@@ -139,7 +253,8 @@ def cmd_analyze(a) -> int:
             p = _find_mcap(os.path.join(rep_dir, d))
             if p:  # a run whose recording is missing is skipped; base runs missing -> fewer verdicts, visible in counts
                 runs[d] = cp.read_mcap(p, topics)
-        records += analyze_rep(runs, config, {"distro": a.distro, "rate": a.rate, "rep": rep})
+        records += analyze_rep(runs, config, {"distro": a.distro, "rate": a.rate, "rep": rep, "set": a.set,
+                                              "recording": a.recording})
     wall = 0.0
     wf = os.path.join(a.runs_dir, "wall_seconds.txt")
     if os.path.exists(wf):
@@ -174,6 +289,8 @@ def main(argv=None) -> int:
     p.add_argument("--distro", required=True)
     p.add_argument("--rate", type=float, required=True)
     p.add_argument("--config", required=True)
+    p.add_argument("--set", default="controls", help="regression set of the job (controls | near)")
+    p.add_argument("--recording", default="sim", help="which input recording the runs replayed")
     p.add_argument("--out", required=True)
     p.set_defaults(fn=cmd_analyze)
     p = sub.add_parser("aggregate")
