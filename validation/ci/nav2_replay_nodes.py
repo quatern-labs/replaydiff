@@ -2,7 +2,7 @@
 """Two small ROS 2 nodes for the nav2 replay loop (CI only, needs ROS 2).
 
   tf     republishes the bag's /tf_in as /tf without the frames in --drop-children (regenerated live or by the
-         localisation), and /tf_static_in as a latched /tf_static, plus a static identity map->odom (the map is
+         localisation), and /tf_static_in as a latched /tf_static, plus (unless --no-map-odom) a static identity map->odom (the map is
          built in the odometry frame, so the two coincide at the start of the window).
   goals  waits for /clock to reach each goal's offset (sim time, no timers), then calls nav2's ComputePathToPose and
          FollowPath for it; goals come from <recording>/../goals.yaml: [{t, x, y, yaw}], map frame.
@@ -25,8 +25,8 @@ from nav2_tools import keep_transform
 
 
 class TfRelay(Node):
-    def __init__(self, drop):
-        super().__init__("tf_relay", parameter_overrides=[])
+    def __init__(self, drop, identity):
+        super().__init__("tf_relay")
         self.drop = drop
         self.static = {}
         latched = QoSProfile(depth=100, durability=DurabilityPolicy.TRANSIENT_LOCAL, reliability=ReliabilityPolicy.RELIABLE)
@@ -37,7 +37,8 @@ class TfRelay(Node):
         ident = TransformStamped()
         ident.header.frame_id, ident.child_frame_id = "map", "odom"
         ident.transform.rotation.w = 1.0
-        self.static[("map", "odom")] = ident
+        if identity:
+            self.static[("map", "odom")] = ident
         self.static_pub.publish(TFMessage(transforms=list(self.static.values())))
 
     def on_tf(self, msg):
@@ -63,13 +64,14 @@ def run_goals(node, goals):
     for g in goals:
         while node.get_clock().now().nanoseconds / 1e9 < g["t"]:  # /clock from the bag
             rclpy.spin_once(node, timeout_sec=0.1)
-        pose = plan_client_goal = ComputePathToPose.Goal()
+        plan_goal = ComputePathToPose.Goal()
+        pose = plan_goal
         pose.goal.header.frame_id = "map"
         pose.goal.pose.position.x, pose.goal.pose.position.y = float(g["x"]), float(g["y"])
         pose.goal.pose.orientation.z = math.sin(g.get("yaw", 0.0) / 2)
         pose.goal.pose.orientation.w = math.cos(g.get("yaw", 0.0) / 2)
         pose.use_start = False
-        fut = plan_client.send_goal_async(plan_client_goal)
+        fut = plan_client.send_goal_async(plan_goal)
         rclpy.spin_until_future_complete(node, fut)
         res = fut.result().get_result_async()
         rclpy.spin_until_future_complete(node, res)
@@ -93,11 +95,12 @@ def main():
     ap.add_argument("mode", choices=["tf", "goals"])
     ap.add_argument("--drop-children", default="odom,wheel_left_link,wheel_right_link")
     ap.add_argument("--goals", default="")
+    ap.add_argument("--no-map-odom", action="store_true", help="do not publish the identity map->odom (SLAM does)")
     a, ros_args = ap.parse_known_args()
     rclpy.init(args=ros_args)
     code = 0
     if a.mode == "tf":
-        node = TfRelay(set(a.drop_children.split(",")))
+        node = TfRelay(set(a.drop_children.split(",")), not a.no_map_odom)
         rclpy.spin(node)
     else:
         node = Node("goal_sender")

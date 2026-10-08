@@ -37,6 +37,20 @@ replaydiff CLI.
    Not implemented in the prototype: Path/JointState/TF comparators, `sequence` matching, drift per metre,
    time-shift estimation. `rel` tolerances are applied as `max(0, |d| - rel*|ref|) <= abs`.
 
+## nav2 replay loop (replaces the pure-pursuit stand-in)
+
+`ci/nav2_replay_once.sh` runs nav2's own `controller_server` (the default Humble controller, DWB, with the values of
+`nav2_bringup`'s params in `nav2/params.yaml`), `planner_server` (NavFn) and `map_server` on the replayed recording:
+`/scan /odom /tf` from the bag with `/clock`, `use_sim_time` on every node, `/tf` relayed without the frames that are
+regenerated live, `tf_static` republished locally, the map from `map_server`. The recorded goals (`goals.yaml`) are
+re-sent by the goal sender, which the launch file starts from an event handler on the bag play's start (it then waits
+for `/clock` to reach each goal's sim time; no timers). nav2's `/cmd_vel` is remapped to `/sut/cmd_vel` and compared
+with `tolerances_nav2.yaml`. Regressions are overlays on nav2's own parameters (`nav2/overlays.yaml`: speed cap -20% /
+-50%, shorter DWB horizon, weaker path-align critic), applied by `nav2_tools.py overlay`. bt_navigator is not used: the
+goal sender calls `ComputePathToPose` and `FollowPath` directly. The controller's published path and odometry are not
+compared yet (no Path comparator in the prototype). Offline-tested: the overlay, TF rule, map check and cache key
+(`tests/test_nav2_tools.py`); the ROS side has not run yet (first CI run).
+
 ## Tolerances ([tolerances.yaml](tolerances.yaml)) and why
 
 | Quantity | Tolerance | Why |

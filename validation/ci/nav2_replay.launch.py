@@ -11,7 +11,7 @@ from launch import LaunchDescription
 from launch.actions import DeclareLaunchArgument, ExecuteProcess, RegisterEventHandler
 from launch.event_handlers import OnProcessExit, OnProcessStart
 from launch.substitutions import LaunchConfiguration as LC
-from launch_ros.actions import LifecycleNode, Node
+from launch_ros.actions import Node
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 SIM = {"use_sim_time": True}

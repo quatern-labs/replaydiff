@@ -33,3 +33,21 @@ CPU load of a real stack) is not represented, and the README says so wherever re
 | `recording-jazzy` | generated in CI from ROS 2 Jazzy `nav2_bringup` + `nav2_minimal_tb3_sim` (Apache-2.0) | as above | workflow artifact, 3-day retention |
 
 The sha256, topic list and message counts of each recording are printed in the "Generate recording" step log.
+
+## Maps for the nav2 replay loop (derived data, never committed)
+
+The nav2 replay loop (`validation/ci/nav2_replay_once.sh`) needs a map for `map_server`:
+
+- **CI sim recording:** `gen_recording.sh` saves the running simulation's own map with `map_saver_cli` next to the
+  recording (`map.yaml`, `map.pgm`) and writes `goals.yaml` (the two goals with their sim-time offsets).
+- **Real recordings (SCAND, once its prepare-recording job is merged):** `validation/ci/build_map.sh` builds the map
+  offline from the same window's derived `/scan` and odometry/TF with **SLAM Toolbox** (mapping mode,
+  `validation/nav2/slam_params.yaml`: resolution 0.05 m, max laser range 12 m, a scan every 0.2 m / 0.2 rad of travel,
+  loop closing on, Ceres solver), then nav2's `map_saver_cli`. `nav2_tools.py check-map` rejects a map with fewer than
+  2000 free or 200 occupied cells (exit 3). The cache key is `nav2_tools.py cache-key <recording> <slam params>`
+  (sha256 of the recording's MCAP and the SLAM parameters), so a map is rebuilt when either changes.
+
+| Tool | License | How it is used |
+|---|---|---|
+| SLAM Toolbox (`ros-<distro>-slam-toolbox`) | **LGPL-2.1** | CI-time tool installed from the ROS apt repo, run as its own process to produce the map. Not vendored, imported or linked by replaydiff code. The map is derived data |
+| nav2 (`controller_server` DWB, `planner_server`, `map_server`, `map_saver`) | Apache-2.0 | the system under test and its map I/O |

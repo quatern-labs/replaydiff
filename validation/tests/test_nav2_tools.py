@@ -78,9 +78,10 @@ def test_cache_key_changes_with_recording_and_params(tmp_path):
     k1 = nt.cache_key(str(rec), str(params))
     assert k1 == nt.cache_key(str(rec), str(params)) and k1.startswith("map-")
     params.write_text("a: 2")
-    assert nt.cache_key(str(rec), str(params)) != k1
+    k2 = nt.cache_key(str(rec), str(params))
+    assert k2 != k1
     (rec / "a.mcap").write_bytes(b"two")
-    assert nt.cache_key(str(rec), str(params)) != nt.cache_key(str(rec), str(tmp_path / "p.yaml")) or True
+    assert nt.cache_key(str(rec), str(params)) not in (k1, k2)
 
 
 def test_overlay_cli_writes_params(tmp_path):
