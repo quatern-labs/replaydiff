@@ -1,0 +1,30 @@
+# SLAM Toolbox (LGPL-2.1, installed from the ROS apt repo in CI only, run as a separate process, never vendored,
+# imported or linked by replaydiff code) in mapping mode on the replayed recording's /scan, /odom and /tf.
+# The map is derived data: cached in CI keyed like the recording, never committed.
+slam_toolbox:
+  ros__parameters:
+    mode: mapping
+    odom_frame: odom
+    map_frame: map
+    base_frame: base_link
+    scan_topic: /scan
+    resolution: 0.05
+    max_laser_range: 12.0
+    minimum_travel_distance: 0.2
+    minimum_travel_heading: 0.2
+    map_update_interval: 2.0
+    transform_publish_period: 0.05
+    do_loop_closing: true
+    solver_plugin: solver_plugins::CeresSolver
+    ceres_linear_solver: SPARSE_NORMAL_CHOLESKY
+    ceres_preconditioner: SCHUR_JACOBI
+    ceres_trust_strategy: LEVENBERG_MARQUARDT
+    ceres_loss_function: None
+    use_scan_matching: true
+    use_scan_barycenter: true
+    minimum_time_interval: 0.5
+    throttle_scans: 1
+    transform_timeout: 0.2
+    tf_buffer_duration: 30.0
+    stack_size_to_use: 40000000
+    enable_interactive_mode: false
