@@ -9,6 +9,7 @@ dependencies = [
   "mcap",
   "mcap-ros2-support",
   "PyYAML",
+  "rosbags",  # Apache-2.0: SCAND ROS 1 -> ROS 2 conversion (validation/scand.py)
 ]
 
 [project.optional-dependencies]

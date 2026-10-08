@@ -3,3 +3,6 @@ PY := $(shell if [ -x .venv/bin/python ]; then echo .venv/bin/python; else echo 
 .PHONY: test
 test:
 	$(PY) -m pytest -q tests validation/tests
+
+.PHONY: test-fast
+test-fast: test
