@@ -47,3 +47,50 @@ def test_summary_flags_false_fail_and_miss():
     s = ex.summarize(recs)["overall"]
     assert not s["success"] and s["base_vs_base"]["false_fail"] == 1
     assert s["regressions"]["missed"] == 1 and s["regressions"]["inconclusive_rate"] == 0.5
+
+
+def near_runs():
+    r = {f"base{i}": mk() for i in range(6)}
+    for name, g in (("gain_x0.5", 1.025), ("gain_x1.5", 1.075), ("gain10", 1.1)):
+        r[name] = mk(gain=g)
+    for name, off in (("offset_x0.5", 0.005), ("offset_x1.0", 0.010), ("offset_x1.5", 0.015)):
+        r[name] = mk(offset=off)
+    r["drop_odom"] = mk(drop_odom=True)
+    return r
+
+
+def test_measured_effect_checks_and_outcomes():
+    recs = ex.analyze_rep(near_runs(), CONFIG, {"distro": "humble", "rate": 0.5, "rep": 1, "recording": "sim"})
+    g = {r["regression"]: r for r in recs if r["kind"] == "regression" and r["n"] == 3}
+    # the gain scales a 0.2-0.35 m/s command (nominal assumes 0.2), so the measured effect differs from the nominal
+    assert 0.8 < g["gain_x0.5"]["effect"] < 0.9 and g["gain_x0.5"]["nominal"] == 0.5
+    # below 1x: p95 stays under the tolerance, the bias-window check fires: the bias check doing its job
+    assert g["gain_x0.5"]["checks"] == ["bias"] and g["gain_x0.5"]["outcome"] == "bias"
+    assert "p95" in g["gain_x1.5"]["checks"] and g["gain_x1.5"]["outcome"] == "correct"
+    assert g["offset_x0.5"]["verdict"] == "PASS" and g["offset_x0.5"]["outcome"] == "correct"
+    assert abs(g["offset_x1.0"]["effect"] - 1.0) < 1e-6 and g["offset_x1.0"]["outcome"] == "acceptable"
+    assert g["offset_x1.5"]["checks"] == ["p95"] and g["offset_x1.5"]["expected"] == "FAIL / INCONCLUSIVE"
+    assert "missing" in g["drop_odom"]["checks"] and g["drop_odom"]["outcome"] == "correct"
+    assert all(r["outcome"] == "correct" for r in recs if r["kind"] == "base_vs_base")
+
+
+def test_judge_false_fail_and_miss():
+    assert ex.judge("regression", "gain", "FAIL", 0.5, ["count"]) == ("PASS (bias FAIL ok)", "false_fail")
+    assert ex.judge("regression", "gain", "FAIL", 0.5, ["bias", "p95"])[1] == "false_fail"
+    assert ex.judge("regression", "offset", "PASS", 1.4, []) == ("FAIL / INCONCLUSIVE", "miss")
+    assert ex.judge("regression", "offset", "INCONCLUSIVE", 1.4, [])[1] == "inconclusive"
+    assert ex.judge("regression", "gain", "PASS", 1.05, [])[1] == "acceptable"
+    assert ex.judge("base_vs_base", None, "FAIL", None, ["bias"]) == ("PASS", "false_fail")
+
+
+def test_curve_table():
+    recs = ex.analyze_rep(near_runs(), CONFIG, {"distro": "humble", "rate": 0.5, "rep": 1, "recording": "sim"})
+    doc = ex.aggregate(recs)
+    rows = {(c["regression"], c["n"]): c for c in doc["summary"]["curve"]}
+    assert [c["regression"] for c in doc["summary"]["curve"] if c["n"] == 3][:2] == ["base", "drop_odom"]
+    c = rows[("gain_x0.5", 3)]
+    assert c["verdicts"]["FAIL"] == 1 and c["checks"] == {"bias": 1} and c["false_fail_rate"] == 0.0
+    assert rows[("offset_x1.5", 5)]["miss_rate"] == 0.0 and rows[("base", 3)]["total"] == 3
+    md = ex.render_md(doc)
+    assert "## Detection curve" in md and "| sim | humble | gain_x0.5 | 0.5x | 0.5x | 3 |" in md
+    json.dumps(doc)
