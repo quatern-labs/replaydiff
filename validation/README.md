@@ -7,8 +7,8 @@ replaydiff CLI.
 
 ## Method
 
-1. **Recording.** A TurtleBot3 + nav2 simulation is run headless in CI and recorded to MCAP (about 40 s), once per
-   ROS distro. See [RECORDINGS.md](RECORDINGS.md): no permissively licensed public bag was found, so it is
+1. **Recording.** A TurtleBot3 + nav2 simulation is run headless in CI and recorded to MCAP (about 40 s), once on Humble
+   (the default; Jazzy is optional, manual-only and known-failing). See [RECORDINGS.md](RECORDINGS.md): no permissively licensed public bag was found, so it is
    generated. The recording never enters git.
 2. **System under test.** `ci/sut.py`, a small pure-pursuit controller written for this experiment. It reads the
    recorded `/odom` and `/plan` and publishes `/sut/cmd_vel` (Twist) and `/sut/odom` (the input odometry through a

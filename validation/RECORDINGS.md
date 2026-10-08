@@ -23,14 +23,14 @@ TurtleBot3 bag, add it here and switch the workflow to download it.
 `validation/ci/gen_recording.sh` runs the TurtleBot3 (waffle) + nav2 simulation headless (`nav2_bringup`
 `tb3_simulation_launch.py`, `headless:=True`), sends two fixed navigation goals, and records
 `/odom /scan /tf /tf_static /cmd_vel /plan` with `ros2 bag record -s mcap --use-sim-time` (about 40 s).
-One recording per ROS distro (Humble, Jazzy), uploaded as a short-lived workflow artifact and reused by every
-replay job of that distro. It is simulated data, not a real-robot recording: real-robot noise (sensor jitter,
+One recording on Humble (the default), uploaded as a short-lived workflow artifact and reused by every
+replay job. Jazzy is optional (manual `workflow_dispatch` with `include_jazzy`) and known-failing. It is simulated data, not a real-robot recording: real-robot noise (sensor jitter,
 CPU load of a real stack) is not represented, and the README says so wherever results are quoted.
 
 | Recording | Source | License | Where |
 |---|---|---|---|
 | `recording-humble` | generated in CI from ROS 2 Humble `nav2_bringup` + `turtlebot3_gazebo` (Apache-2.0) | the recording itself is generated data, not distributed; the packages that produce it are Apache-2.0 | workflow artifact, 3-day retention |
-| `recording-jazzy` | generated in CI from ROS 2 Jazzy `nav2_bringup` + `nav2_minimal_tb3_sim` (Apache-2.0) | as above | workflow artifact, 3-day retention |
+| `recording-jazzy` | optional (manual run only, known-failing); would be generated in CI from ROS 2 Jazzy `nav2_bringup` + `nav2_minimal_tb3_sim` (Apache-2.0) | as above | workflow artifact, 3-day retention |
 
 The sha256, topic list and message counts of each recording are printed in the "Generate recording" step log.
 
