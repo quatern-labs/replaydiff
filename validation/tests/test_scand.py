@@ -78,3 +78,23 @@ def test_point_cloud_only_in_intermediate_and_refused_by_check(bag, tmp_path):
 def test_topic_map_is_the_only_mapping(bag, tmp_path):
     counts = scand.convert(str(bag), str(tmp_path / "o"), 0.0, 1.0, topic_map={"/jackal_velocity_controller/odom": "/odom"})
     assert counts == {"/odom": 10}
+
+
+def test_pin_listing_and_steady_window(bag):
+    import numpy as np
+
+    import scand_pin
+
+    f = lambda i, name, size, label="": {"dataFile": {"id": i, "filename": name, "filesize": size,  # noqa: E731
+                                                      "checksum": {"type": "MD5", "value": "x"}}, "directoryLabel": label}
+    listing = {"data": [f(1, "A_Jackal_x.bag", 900), f(2, "A_Spot_y.bag", 10), f(3, "b.bag", 500, "Jackal"),
+                        f(4, "Jackal_notes.txt", 1)]}
+    assert [b["id"] for b in scand_pin.jackal_bags(listing)] == [3, 1]
+    t = np.arange(0, 100, 0.1)
+    v = np.where((t > 40) & (t < 75), 1.0, 0.2)  # steady 1 m/s from 40 to 75 s
+    w = scand_pin.steady_window(t, v, 30.0)
+    assert 41 <= w["start"] <= 45 and w["min_speed"] == 1.0
+    assert scand_pin.steady_window(t, v, 200.0) is None
+    info = scand_pin.inspect_bag(str(bag), 5.0)  # synthetic bag: odom twist is zero, window still found
+    assert info["odom_topic"] == "/jackal_velocity_controller/odom" and info["window"]["duration"] == 5.0
+    assert info["topics"]["/velodyne_points"] == {"type": "sensor_msgs/msg/PointCloud2", "count": 100}
