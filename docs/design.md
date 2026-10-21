@@ -28,8 +28,7 @@ From GitHub repository and code search and direct reads of each tool's source (O
 
 Conclusion: none of the tools above diffs message values between two code versions on the same recording
 with per-topic tolerances and a CI exit code. Their closest pieces are listed in the table: replay and record
-(replay_testing), policy files and exit codes (rosbag-doctor), and pose matching (evo). Beyond these tools, the
-code search turned up one-off compare scripts inside project repos.
+(replay_testing), policy files and exit codes (rosbag-doctor), and pose matching (evo).
 
 ## Architecture
 ```
