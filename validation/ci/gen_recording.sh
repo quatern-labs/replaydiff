@@ -35,7 +35,7 @@ pids+=($!)
 "$here/wait_nav2.sh" "${pids[0]}" "$out/sim.log" "$distro"
 sleep 20
 
-ros2 bag record -s mcap --use-sim-time -o "$out/recording" /odom /scan /tf /tf_static /cmd_vel /plan > "$out/record.log" 2>&1 &
+ros2 bag record -s mcap --use-sim-time -o "$out/recording" /odom /scan /tf /tf_static /cmd_vel /plan /clock > "$out/record.log" 2>&1 &
 rec=$!
 pids+=("$rec")
 sleep 3
@@ -44,9 +44,16 @@ sleep 3
 ros2 topic pub --once /initialpose geometry_msgs/msg/PoseWithCovarianceStamped \
   "{header: {frame_id: map}, pose: {pose: {position: {x: -2.0, y: -0.5, z: 0.0}, orientation: {w: 1.0}}}}" >/dev/null
 sleep 5
+# the nav2 replay loop (nav2_replay_once.sh) re-sends these goals at the same sim time: goals.yaml has t (sim s)
+# Map for the nav2 replay of this recording: saved from the running sim's own map_server (never committed).
+ros2 run nav2_map_server map_saver_cli -f "$out/map" --ros-args -p use_sim_time:=true >> "$out/goals.log" 2>&1 \
+  || echo "map save failed" >> "$out/goals.log"
+: > "$out/goals.yaml"
 goals=("-1.0 -0.5" "0.0 0.5")
 for g in "${goals[@]}"; do
   set -- $g
+  t=$(timeout 10 ros2 topic echo --once --field clock.sec /clock 2>/dev/null | head -1)
+  echo "- {t: ${t:-0}, x: $1, y: $2, yaw: 0.0}" >> "$out/goals.yaml"
   timeout 20 ros2 action send_goal /navigate_to_pose nav2_msgs/action/NavigateToPose \
     "{pose: {header: {frame_id: map}, pose: {position: {x: $1, y: $2, z: 0.0}, orientation: {w: 1.0}}}}" \
     >> "$out/goals.log" 2>&1 || echo "goal $g did not finish in 20 s (recording continues)" >> "$out/goals.log"
