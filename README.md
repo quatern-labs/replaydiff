@@ -1,5 +1,7 @@
 # replaydiff
 
+Replay-based differential testing for ROS 2
+
 Replay the same ROS 2 recording (MCAP) through two versions of your code and find out whether the behavior changed.
 
 replaydiff runs a recording through your stack at two git refs, records the outputs, compares them topic by topic
