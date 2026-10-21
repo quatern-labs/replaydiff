@@ -1,0 +1,11 @@
+# Tolerances for the nav2 replay loop: only nav2's /cmd_vel (remapped to /sut/cmd_vel by the launch file).
+# Same quantities and limits as tolerances.yaml's cmd_vel entry, scaled to nav2's 0.26 m/s limit.
+version: 1
+defaults: {match: nearest, max_dt: 0.02, skip_first: 1.0, stat: p95}
+rate: {rel: 0.10}
+topics:
+  /sut/cmd_vel:
+    fields:
+      linear.x: {abs: 0.013}    # 5% of the 0.26 m/s DWB limit
+      angular.z: {abs: 0.05}
+    bias: {window: 2.0, abs: 0.007}

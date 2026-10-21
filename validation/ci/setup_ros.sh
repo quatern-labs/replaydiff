@@ -12,8 +12,17 @@ pkgs=(
   "ros-${distro}-rosbag2" "ros-${distro}-rosbag2-storage-mcap" "ros-${distro}-nav-msgs" "ros-${distro}-geometry-msgs"
   python3-numpy python3-yaml python3-pip
 )
+# nav2 replay loop: nav2's own controller, planner and map_server run on the replayed recording
+if [ "${2:-}" = "nav2" ] || [ "${2:-}" = "sim" ]; then
+  pkgs+=("ros-${distro}-nav2-bringup" "ros-${distro}-nav2-map-server" "ros-${distro}-nav2-msgs")
+fi
+# SLAM Toolbox (LGPL-2.1) builds the SCAND map. A CI-time tool only: installed from the ROS apt repo and run as its
+# own process; replaydiff code never vendors, imports or links it. Name and license go in the receipt and RECORDINGS.md.
+if [ "${2:-}" = "slam" ]; then
+  pkgs+=("ros-${distro}-slam-toolbox" "ros-${distro}-nav2-map-server")
+fi
 if [ "${2:-}" = "sim" ]; then
-  pkgs+=("ros-${distro}-nav2-bringup" xvfb)
+  pkgs+=(xvfb)
   if [ "$distro" = humble ]; then
     pkgs+=("ros-${distro}-turtlebot3-gazebo" "ros-${distro}-gazebo-ros-pkgs")
     # A host runner image ships libunwind-14-dev, which conflicts with the libunwind-dev that libgoogle-glog-dev
