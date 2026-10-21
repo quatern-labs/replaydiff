@@ -78,7 +78,6 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        distro: [humble, jazzy]
         rate: ["0.5", "1.0"]
         rep: [1, 2, 3]
         distro: ${{ fromJSON(inputs.include_jazzy && '["humble","jazzy"]' || '["humble"]') }}
