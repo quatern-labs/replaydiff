@@ -1,7 +1,7 @@
 [project]
 name = "replaydiff-validation"
 version = "0.0.0"
-description = "Validation experiment for replaydiff (not the replaydiff tool itself)"
+description = "Replay-based differential testing for ROS 2"
 requires-python = ">=3.10"
 license = { text = "Apache-2.0" }
 dependencies = [
