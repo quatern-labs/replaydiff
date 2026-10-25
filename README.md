@@ -8,7 +8,10 @@ replaydiff runs a recording through your stack at two git refs, records the outp
 against a per-topic tolerance file, and exits 0 (same behavior within tolerance), 1 (regression) or 2 (can't tell:
 the replay is too noisy for the tolerance you set, or something failed). It is built to run in CI on pull requests.
 
-**Status: design only. Nothing is implemented yet.** The design is in [docs/design.md](docs/design.md).
+**Status: design stage.** The tool itself (comparators, CLI) is not built yet. An offline validation harness with unit
+tests exists in `validation/`. The design is in [docs/design.md](docs/design.md).
+
+CI runs `make test` (offline unit tests, no ROS) on every pull request and every push to main.
 
 Planned first release:
 - Comparators for `geometry_msgs/Twist`, `nav_msgs/Odometry`, `nav_msgs/Path`, `sensor_msgs/JointState` and `/tf`.
