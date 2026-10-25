@@ -6,7 +6,7 @@ Replay the same ROS 2 recording (MCAP) through two versions of your code and fin
 
 replaydiff runs a recording through your stack at two git refs, records the outputs, compares them topic by topic
 against a per-topic tolerance file, and exits 0 (same behavior within tolerance), 1 (regression) or 2 (can't tell:
-the replay is too noisy for the tolerance you set, or something failed). It is built to run in CI on pull requests.
+the replay is too noisy for the tolerance you set, or something failed). It is built to run in CI on pull requests. CI runs `make test` on every pull request.
 
 **Status: design only. Nothing is implemented yet.** The design is in [docs/design.md](docs/design.md).
 
