@@ -19,5 +19,7 @@ Planned first release:
 
 Replay and recording use [replay_testing](https://github.com/polymathrobotics/replay_testing).
 
+CI runs `make test` (the offline unit tests) on every pull request and every push to main.
+
 ## License
 Apache License 2.0. See [LICENSE](LICENSE).
