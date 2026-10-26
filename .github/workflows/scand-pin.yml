@@ -1,15 +1,12 @@
 name: scand-pin
 
-# One-off: find the SCAND (doi:10.18738/T8/0PRYRH, v5.2, CC0-1.0) Jackal bag to pin for the validation experiment.
+# One-off, manual only (not on pull_request: dataverse.tdl.org has returned 403 to GitHub runners, so a PR run fails
+# for a reason the change does not control): find the SCAND (doi:10.18738/T8/0PRYRH, v5.2, CC0-1.0) Jackal bag to pin for the validation experiment.
 # Prints the Dataverse file listing and, for the smallest Jackal bags, file id, name, size, sha256, topics (name, type,
 # count) and the steadiest driving window. Bags are deleted after hashing and never uploaded; the artifact holds only
 # that JSON (no message contents, no image or point-cloud data). The values are then pinned in a follow-up commit.
 on:
   workflow_dispatch:
-  pull_request:
-    paths:
-      - "validation/scand_pin.py"
-      - ".github/workflows/scand-pin.yml"
 
 permissions:
   contents: read
