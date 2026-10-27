@@ -85,6 +85,11 @@ DEFS = {
     "nav_msgs/msg/Path": ("std_msgs/Header header\ngeometry_msgs/PoseStamped[] poses\n" + _SEP + _HDR + _SEP + _TIME
                           + _SEP + "MSG: geometry_msgs/PoseStamped\nstd_msgs/Header header\ngeometry_msgs/Pose pose\n"
                           + _SEP + _POSE + _SEP + _P + _SEP + _Q),
+    "tf2_msgs/msg/TFMessage": ("geometry_msgs/TransformStamped[] transforms\n" + _SEP
+                               + "MSG: geometry_msgs/TransformStamped\nstd_msgs/Header header\nstring child_frame_id\n"
+                               "geometry_msgs/Transform transform\n" + _SEP + _HDR + _SEP + _TIME + _SEP
+                               + "MSG: geometry_msgs/Transform\ngeometry_msgs/Vector3 translation\n"
+                               "geometry_msgs/Quaternion rotation\n" + _SEP + _V3 + _SEP + _Q),
     "sensor_msgs/msg/JointState": ("std_msgs/Header header\nstring[] name\nfloat64[] position\nfloat64[] velocity\n"
                                    "float64[] effort\n" + _SEP + _HDR + _SEP + _TIME),
 }
@@ -95,9 +100,10 @@ def _xyz(x=0.0, y=0.0, z=0.0):
 
 
 def write_mcap(path, *, gain=1.0, offset=0.0, path_shift=0.0, seed=0, jitter=1e-4, times=TIMES[:400:4],
-               joint_offset=0.0, joint_reverse=False, joints=("shoulder", "elbow", "gripper")):
-    """Write /cmd_vel (Twist), /odom (Odometry), /plan (Path) and /joint_states to an MCAP. One call = one replay run: the
-    seed gives each base run its own small noise; `gain`, `offset` and `path_shift` inject regressions."""
+               joint_offset=0.0, joint_reverse=False, joints=("shoulder", "elbow", "gripper"),
+               tf=False, tf_offset=0.0, tf_yaw_deg=0.0):
+    """Write /cmd_vel (Twist), /odom (Odometry), /plan (Path) and /joint_states and, if `tf`, /tf (odom->base_link, base_link->laser) to an MCAP. One call = one replay run: the
+    seed gives each base run its own small noise; `gain`, `offset` and `path_shift`, `tf_offset` (m) and `tf_yaw_deg` inject regressions."""
     import math
     from mcap_ros2.writer import Writer
     rng = np.random.default_rng(seed)
@@ -123,6 +129,14 @@ def write_mcap(path, *, gain=1.0, offset=0.0, path_shift=0.0, seed=0, jitter=1e-
                 "position": [pos[n] + rng.normal(0, jitter) for n in names],
                 "velocity": [0.1 * rng.normal(0, 1) for _ in names], "effort": [5.0 * rng.normal(0, 1) for _ in names]},
                 log_time=ns, publish_time=ns)
+            if tf:
+                yaw = math.radians(tf_yaw_deg) / 2
+                tfs = [("odom", "base_link", _xyz(0.2 * t + tf_offset + rng.normal(0, jitter)), (0, 0, math.sin(yaw), math.cos(yaw))),
+                       ("base_link", "laser", _xyz(0.1, 0, 0.2), (0, 0, 0, 1))]
+                w.write_message("/tf", sch["tf2_msgs/msg/TFMessage"], {"transforms": [
+                    {"header": {**hdr, "frame_id": p}, "child_frame_id": c, "transform": {
+                        "translation": v, "rotation": dict(zip("xyzw", q))}} for p, c, v, q in tfs]},
+                    log_time=ns, publish_time=ns)
             w.write_message("/plan", sch["nav_msgs/msg/Path"], {"header": hdr, "poses": poses},
                             log_time=ns, publish_time=ns)
         w.finish()
@@ -150,4 +164,14 @@ topics:
     match: interpolate
     joints: {"*": {position: 0.01, velocity: 1.0}, gripper: {position: 0.002}}
     ignore_fields: [effort]
+"""
+
+TF_TOLERANCES = """
+defaults: {skip_first: 1.0, stat: p95}
+topics:
+  /tf:
+    match: interpolate
+    pairs:
+      - {parent: odom, child: base_link, translation: 0.01, rotation_deg: 1.0}
+      - {parent: base_link, child: laser, translation: 0.01}
 """
