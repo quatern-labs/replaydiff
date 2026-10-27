@@ -10,7 +10,10 @@ import math
 import sys
 from collections import Counter, defaultdict
 
-from replaydiff import compare as cp
+# CI runs this file as a script (python3 validation/experiment.py): only validation/ is on sys.path then, not the repo
+# root, and replaydiff is not pip-installed in the ROS containers.
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from replaydiff import compare as cp  # noqa: E402
 
 N_VALUES = (3, 5)
 N_BASE_RUNS = 6  # base0..base5: N=3 judges base3..base5 as "head", N=5 judges base5 (never a run that is in the base set)
