@@ -31,7 +31,14 @@ Previous fixes (rd-008, rd-009):
 - Re-landed c691f69 from rd-near-tolerance-try1: near-tolerance parameter overlays (0.5x–1.5x of fixed tolerances), measured effect size per run, detection-curve report, `near` job set in validation.yml (Humble only). Tolerances unchanged.
 - Conflicts in validation.yml and README.md resolved onto main's Humble-default matrix (`include_jazzy` input).
 - State: `validation/tests/test_experiment.py` passes offline (6 passed). ROS/CI parts unverified until Actions runs.
-- Next: SCAND conversion (scand.py + tests), scand-pin job, remaining handoffs/pyproject/validation.yml bits.
+- Next: scand-pin job, remaining handoffs/pyproject/validation.yml bits.
+
+## PR #7: SCAND ROS 1 → ROS 2 Conversion (attempt 4, merged)
+
+- Cherry-picked `validation/scand.py` (SCAND ROS 1 -> ROS 2 MCAP conversion: window trim, TOPIC_MAP, image/point-cloud privacy check), `validation/tests/test_scand.py`, and `rosbags` dependency in pyproject.toml.
+- State: `validation/tests/test_scand.py` passes offline on synthetic ROS 1 bag. Not run against real SCAND data. Tests require `rosbags` installed.
+- Open: SCAND files being ROS 1 `.bag` is unverified; Makefile/validation.yml changes not recoverable (main already has `test-fast`); PR #7 head d518a64 still not fetchable on GitHub.
+- Next: diff against merged PR #7 on GitHub for any content beyond the cherry-picked commits.
 
 ## Nav2 Controller Loop Implementation
 
