@@ -33,7 +33,14 @@ def test_readme_example_runs_verbatim(tmp_path):
     env = {k: v for k, v in os.environ.items() if k not in ("VIRTUAL_ENV", "PYTHONHOME")}
     env["PATH"] = f"{bindir}:/usr/bin:/bin"
     # the dependencies come from the test environment; pip only builds and installs replaydiff itself
-    env["PYTHONPATH"] = os.pathsep.join(site.getsitepackages())
+    # (linked without replaydiff itself, else pip sees it as already installed and skips the console script)
+    deps = tmp_path / "deps"
+    deps.mkdir()
+    for sp in site.getsitepackages():
+        for entry in pathlib.Path(sp).iterdir():
+            if "replaydiff" not in entry.name.lower() and not (deps / entry.name).exists():
+                (deps / entry.name).symlink_to(entry)
+    env["PYTHONPATH"] = str(deps)
     env["PIP_DISABLE_PIP_VERSION_CHECK"] = "1"
     offline = all(importlib.util.find_spec(m) for m in ("setuptools", "wheel"))
     if offline:  # build with the installed backend, no network
