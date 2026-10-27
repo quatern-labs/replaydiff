@@ -10,7 +10,9 @@ import math
 import sys
 from collections import Counter, defaultdict
 
-from replaydiff import compare as cp
+# CI runs this file as a script (sys.path[0] is validation/), without installing the package
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
+from replaydiff import compare as cp  # noqa: E402
 
 N_VALUES = (3, 5)
 N_BASE_RUNS = 6  # base0..base5: N=3 judges base3..base5 as "head", N=5 judges base5 (never a run that is in the base set)
