@@ -85,6 +85,8 @@ DEFS = {
     "nav_msgs/msg/Path": ("std_msgs/Header header\ngeometry_msgs/PoseStamped[] poses\n" + _SEP + _HDR + _SEP + _TIME
                           + _SEP + "MSG: geometry_msgs/PoseStamped\nstd_msgs/Header header\ngeometry_msgs/Pose pose\n"
                           + _SEP + _POSE + _SEP + _P + _SEP + _Q),
+    "sensor_msgs/msg/JointState": ("std_msgs/Header header\nstring[] name\nfloat64[] position\nfloat64[] velocity\n"
+                                   "float64[] effort\n" + _SEP + _HDR + _SEP + _TIME),
 }
 
 
@@ -92,8 +94,9 @@ def _xyz(x=0.0, y=0.0, z=0.0):
     return {"x": x, "y": y, "z": z}
 
 
-def write_mcap(path, *, gain=1.0, offset=0.0, path_shift=0.0, seed=0, jitter=1e-4, times=TIMES[:400:4]):
-    """Write /cmd_vel (Twist), /odom (Odometry) and /plan (Path) to an MCAP. One call = one replay run: the
+def write_mcap(path, *, gain=1.0, offset=0.0, path_shift=0.0, seed=0, jitter=1e-4, times=TIMES[:400:4],
+               joint_offset=0.0, joint_reverse=False, joints=("shoulder", "elbow", "gripper")):
+    """Write /cmd_vel (Twist), /odom (Odometry), /plan (Path) and /joint_states to an MCAP. One call = one replay run: the
     seed gives each base run its own small noise; `gain`, `offset` and `path_shift` inject regressions."""
     import math
     from mcap_ros2.writer import Writer
@@ -113,6 +116,13 @@ def write_mcap(path, *, gain=1.0, offset=0.0, path_shift=0.0, seed=0, jitter=1e-
                 "twist": {"twist": {"linear": _xyz(0.2), "angular": _xyz()}}}, log_time=ns, publish_time=ns)
             poses = [{"header": hdr, "pose": {"position": _xyz(0.5 * k, path_shift), "orientation": {
                 "x": 0, "y": 0, "z": 0, "w": 1}}} for k in range(5)]
+            names = list(joints)[::-1] if joint_reverse else list(joints)
+            pos = {"shoulder": 0.5 * math.sin(t / 4), "elbow": 0.1 * t + joint_offset, "gripper": 0.02}
+            w.write_message("/joint_states", sch["sensor_msgs/msg/JointState"], {
+                "header": hdr, "name": names,
+                "position": [pos[n] + rng.normal(0, jitter) for n in names],
+                "velocity": [0.1 * rng.normal(0, 1) for _ in names], "effort": [5.0 * rng.normal(0, 1) for _ in names]},
+                log_time=ns, publish_time=ns)
             w.write_message("/plan", sch["nav_msgs/msg/Path"], {"header": hdr, "poses": poses},
                             log_time=ns, publish_time=ns)
         w.finish()
@@ -131,4 +141,13 @@ topics:
   /plan:
     match: sequence
     path: {mean_dist: 0.05, hausdorff: 0.20, endpoint: 0.05, resample: 0.05}
+"""
+
+JOINT_TOLERANCES = """
+defaults: {skip_first: 1.0, stat: p95}
+topics:
+  /joint_states:
+    match: interpolate
+    joints: {"*": {position: 0.01, velocity: 1.0}, gripper: {position: 0.002}}
+    ignore_fields: [effort]
 """
