@@ -98,6 +98,8 @@ jobs:
           validation/ci/run_experiment.sh ${{ matrix.distro }} "$RUNNER_TEMP/recording" ${{ matrix.rate }}
           "$RUNNER_TEMP/runs" ${{ matrix.rep }} ${{ matrix.set }}
       - name: Compare (N=3 and N=5)
+        env:
+          PYTHONPATH: ${{ github.workspace }}  # validation/experiment.py imports the replaydiff package from the checkout
         run: >
           python3 validation/experiment.py analyze --runs-dir "$RUNNER_TEMP/runs" --distro ${{ matrix.distro }}
           --rate ${{ matrix.rate }} --config validation/tolerances.yaml --set ${{ matrix.set }}
@@ -130,6 +132,8 @@ jobs:
           path: parts
           merge-multiple: true
       - name: Write results/validation.json and results/validation.md
+        env:
+          PYTHONPATH: ${{ github.workspace }}  # validation/experiment.py imports the replaydiff package from the checkout
         run: |
           python validation/experiment.py aggregate --inputs parts/result-*.json --out-dir results
           if ! ls parts/result-jazzy-*.json >/dev/null 2>&1; then
