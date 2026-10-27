@@ -51,3 +51,16 @@ The nav2 replay loop (`validation/ci/nav2_replay_once.sh`) needs a map for `map_
 |---|---|---|
 | SLAM Toolbox (`ros-<distro>-slam-toolbox`) | **LGPL-2.1** | CI-time tool installed from the ROS apt repo, run as its own process to produce the map. Not vendored, imported or linked by replaydiff code. The map is derived data |
 | nav2 (`controller_server` DWB, `planner_server`, `map_server`, `map_saver`) | Apache-2.0 | the system under test and its map I/O |
+
+## Real-robot recording: SCAND (derived, never committed)
+
+The real-robot replay jobs use a trimmed window of a SCAND run (Socially CompliAnt Navigation Dataset, UT Austin
+AMRL; Karnan et al., "Socially CompliAnt Navigation Dataset (SCAND): A Large-Scale Dataset of Demonstrations for
+Social Navigation", RA-L 2022). Credit: the SCAND authors. The converted window (`validation/scand.py`,
+`validation/prepare_recording.py`) is derived data, never committed or redistributed by this repo: CI gets it from a
+`prepare` run's workflow artifact. Dataverse returns 403 to GitHub runners, so the original bag is not downloaded in CI.
+The dataset license is not yet checked against this repo's (Apache-2.0) terms: confirm it before any public claim.
+
+| Recording | Source | License | Where |
+|---|---|---|---|
+| `recording-scand` | SCAND (UT Austin AMRL), ROS 1 bag converted to ROS 2 MCAP, trimmed window | not yet confirmed; derived data not distributed | workflow artifact from an earlier run (`scand_run_id`) |
