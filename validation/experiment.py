@@ -10,7 +10,8 @@ import math
 import sys
 from collections import Counter, defaultdict
 
-from replaydiff import compare as cp
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))  # repo root: CI runs this script without installing replaydiff
+from replaydiff import compare as cp  # noqa: E402
 
 N_VALUES = (3, 5)
 N_BASE_RUNS = 6  # base0..base5: N=3 judges base3..base5 as "head", N=5 judges base5 (never a run that is in the base set)
