@@ -3,8 +3,9 @@
 Implements: per-topic message matching (nearest,
 interpolate), per-field errors for Twist/TwistStamped and Odometry, the p95 stat, the noise floor from N base
 runs, the INCONCLUSIVE / FAIL / PASS rule, the bias-window test and the message-count / rate check.
-Path is compared with `match: sequence` (i-th message with i-th).
-Not implemented: JointState, TF, `sequence` matching, drift per metre, time-shift estimation.
+Path is compared with `match: sequence` (i-th message with i-th). JointState is compared per joint name
+(position/velocity/effort, `joints` tolerances, `ignore_fields`); a joint-set mismatch is a failure.
+Not implemented: TF, `sequence` matching, drift per metre, time-shift estimation.
 
 Messages are duck-typed (attribute access), so unit tests use plain SimpleNamespace objects and need no ROS.
 """
@@ -123,8 +124,37 @@ class Quantity:
     param: float = 0.0         # path: resample step, m
 
 
+JOINT_FIELDS = ("position", "velocity", "effort")
+
+
+def _joint_value(msg, name: str, fld: str) -> list[float]:
+    """Value of one joint field by joint name; NaN if the joint (or an empty velocity/effort array) is absent."""
+    names, vals = list(msg.name), getattr(msg, fld)
+    return [float(vals[names.index(name)]) if name in names and len(vals) == len(names) else math.nan]
+
+
+def joint_quantities(topic_cfg: dict, sample_msg) -> list[Quantity]:
+    """One quantity per joint and field. `joints` maps `"*"` and/or joint names to {field: tol} (tol is a number
+    or {abs, rel}); a joint's own entry overrides `"*"`. Fields in `ignore_fields` and fields the sample message
+    leaves empty are not compared."""
+    joints = topic_cfg.get("joints", {})
+    ignore = set(topic_cfg.get("ignore_fields", []))
+    out = []
+    for name in sample_msg.name:
+        spec = {**joints.get("*", {}), **joints.get(name, {})}
+        for fld in JOINT_FIELDS:
+            if fld not in spec or fld in ignore or len(getattr(sample_msg, fld)) != len(sample_msg.name):
+                continue
+            tol = spec[fld]
+            tol, rel = (tol["abs"], tol.get("rel", 0.0)) if isinstance(tol, dict) else (tol, 0.0)
+            out.append(Quantity(f"joint.{name}.{fld}", lambda m, n=name, f=fld: _joint_value(m, n, f), tol, rel))
+    return out
+
+
 def quantities_for(topic_cfg: dict, sample_msg) -> list[Quantity]:
     """Build the compared quantities of one topic from its config block."""
+    if hasattr(sample_msg, "position") and hasattr(sample_msg, "name"):
+        return joint_quantities(topic_cfg, sample_msg)
     out: list[Quantity] = []
     is_odom = hasattr(sample_msg, "pose") and hasattr(sample_msg.pose, "pose")
     bias = topic_cfg.get("bias")
@@ -395,6 +425,15 @@ def evaluate(base_runs: list[Run], head: Run, config: dict) -> Report:
         results.append(QResult(topic, "rate", "FAIL" if rate_fail else "PASS", rate_rel, None, min(diffs),
                                [f"head published {nh} messages vs base {[count(s) for s in base_series]}"]
                                if rate_fail else []))
+
+        if hasattr(sample_src.msgs[0], "position") and hasattr(sample_src.msgs[0], "name"):
+            def names(s: Series) -> set:
+                return {n for m in s.msgs for n in m.name}
+            base_names, head_names = [names(s) for s in base_series], names(head_series)
+            extra, missing = sorted(head_names - set.union(*base_names)), sorted(set.intersection(*base_names) - head_names)
+            bad = extra or missing or any(n != base_names[0] for n in base_names)
+            results.append(QResult(topic, "joint_set", "FAIL" if bad else "PASS", None, None, None,
+                                   [f"joints differ from base: extra {extra}, missing {missing}"] if bad else []))
 
         pairs = list(itertools.combinations(range(len(base_series)), 2))
         for q in quantities:
