@@ -62,3 +62,29 @@ def test_single_base_run_exits_2(runs):
 
 def test_usage_without_subcommand_exits_2():
     assert main([]) == 2
+
+
+def test_markdown_report_and_inconclusive_flag(runs, tmp_path):
+    md = tmp_path / "report.md"
+    assert run_cli(runs, "gain30.mcap", "--markdown", str(md)) == 1
+    text = md.read_text()
+    assert text.startswith("### replaydiff: FAIL") and "VERDICT FAIL" in text
+    assert run_cli(runs, "same.mcap", "--inconclusive", "pass") == 0
+
+
+def test_inconclusive_pass_turns_2_into_0_but_not_errors(runs):
+    one = ["--base", str(runs / "base0.mcap"), "--head", str(runs / "same.mcap"), "--tolerances", str(runs / "tol.yaml")]
+    assert main(["compare", *one, "--inconclusive", "pass"]) == 0
+    bad = ["--base", str(runs / "nope.mcap"), str(runs / "base0.mcap"), "--head", str(runs / "same.mcap"),
+           "--tolerances", str(runs / "tol.yaml")]
+    assert main(["compare", *bad, "--inconclusive", "pass"]) == 2
+
+
+def test_action_yml_shape():
+    import pathlib
+    import yaml
+    a = yaml.safe_load((pathlib.Path(__file__).parents[2] / "action.yml").read_text())
+    assert a["runs"]["using"] == "composite"
+    assert {"base", "head", "config"} <= {k for k, v in a["inputs"].items() if v.get("required")}
+    assert all("run" in s or "uses" in s for s in a["runs"]["steps"])
+    assert "exit" in a["runs"]["steps"][-1]["run"]

@@ -540,6 +540,9 @@ def main(argv=None) -> int:
     ap.add_argument("--head", required=True, help="head-run MCAP")
     ap.add_argument("--tolerances", "--config", dest="tolerances", required=True, help="YAML tolerance file")
     ap.add_argument("--json", nargs="?", const="-", help="write the JSON report to this file (stdout if no value)")
+    ap.add_argument("--markdown", help="also write a PR-comment sized report.md to this file")
+    ap.add_argument("--inconclusive", choices=["fail", "pass"], default="fail",
+                    help="exit code for a run with no FAIL but an INCONCLUSIVE (default fail = 2)")
     args = ap.parse_args(argv)
     try:
         cfg = load_config(args.tolerances)
@@ -556,6 +559,11 @@ def main(argv=None) -> int:
         if args.json:
             with open(args.json, "w") as f:
                 json.dump(report.to_dict(), f, indent=2)
+    if args.markdown:
+        with open(args.markdown, "w") as f:
+            f.write(f"### replaydiff: {report.verdict}\n\n```\n{format_report(report)}\n```\n")
+    if report.verdict == "INCONCLUSIVE" and args.inconclusive == "pass":
+        return 0
     return report.exit_code
 
 

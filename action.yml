@@ -1,0 +1,83 @@
+name: replaydiff compare
+description: Compare a head recording against base replays and post the report on the pull request.
+inputs:
+  base:
+    description: Space- or newline-separated base-run MCAP paths (at least 2, the noise floor).
+    required: true
+  head:
+    description: Head-run MCAP path.
+    required: true
+  config:
+    description: Tolerance file (YAML).
+    required: true
+  inconclusive:
+    description: "`fail` (default) or `pass`: how to treat a run with no FAIL but an INCONCLUSIVE."
+    default: fail
+  comment:
+    description: Post or update one PR comment with the report (needs `pull-requests Write`).
+    default: "true"
+  python-version:
+    description: Python used to run replaydiff.
+    default: "3.11"
+outputs:
+  verdict:
+    description: PASS, FAIL or INCONCLUSIVE (empty if the tool errored).
+    value: ${{ steps.compare.outputs.verdict }}
+  exit-code:
+    description: "replaydiff's exit code: 0 pass, 1 FAIL, 2 inconclusive or error."
+    value: ${{ steps.compare.outputs.exit_code }}
+runs:
+  using: composite
+  steps:
+    - uses: actions/setup-python@v5
+      with:
+        python-version: ${{ inputs.python-version }}
+    - run: python -m pip install "${{ github.action_path }}"
+      shell: bash
+    - id: compare
+      shell: bash
+      env:
+        BASE: ${{ inputs.base }}
+        HEAD_RUN: ${{ inputs.head }}
+        CONFIG: ${{ inputs.config }}
+        INCONCLUSIVE: ${{ inputs.inconclusive }}
+      run: |
+        out="${RUNNER_TEMP}/replaydiff"; mkdir -p "$out"
+        set +e
+        # shellcheck disable=SC2086  # BASE is a whitespace-separated path list
+        replaydiff compare --base $BASE --head "$HEAD_RUN" --tolerances "$CONFIG" \
+          --json "$out/report.json" --markdown "$out/report.md" --inconclusive "$INCONCLUSIVE"
+        code=$?
+        set -e
+        echo "exit_code=$code" >> "$GITHUB_OUTPUT"
+        echo "report_dir=$out" >> "$GITHUB_OUTPUT"
+        if [ -f "$out/report.json" ]; then
+          python -c 'import json,sys; print("verdict=" + json.load(open(sys.argv[1]))["verdict"])' "$out/report.json" >> "$GITHUB_OUTPUT"
+        else
+          echo "verdict=" >> "$GITHUB_OUTPUT"
+          printf '### replaydiff: error\n\nThe comparison did not run; see the job log.\n' > "$out/report.md"
+        fi
+        cat "$out/report.md" >> "$GITHUB_STEP_SUMMARY"
+    - uses: actions/upload-artifact@v4
+      if: always()
+      with:
+        name: replaydiff-report
+        path: ${{ steps.compare.outputs.report_dir }}
+    - uses: actions/github-script@v7
+      if: always() && inputs.comment == 'true' && github.event.pull_request
+      env:
+        REPORT_MD: ${{ steps.compare.outputs.report_dir }}/report.md
+      with:
+        script: |
+          const marker = '<!-- replaydiff-report -->';
+          const body = marker + '\n' + require('fs').readFileSync(process.env.REPORT_MD, 'utf8');
+          const {owner, repo} = context.repo;
+          const issue_number = context.payload.pull_request.number;
+          const comments = await github.paginate(github.rest.issues.listComments, {owner, repo, issue_number});
+          const old = comments.find(c => c.body && c.body.startsWith(marker));
+          if (old) await github.rest.issues.updateComment({owner, repo, comment_id: old.id, body});
+          else await github.rest.issues.createComment({owner, repo, issue_number, body});
+    - shell: bash
+      env:
+        CODE: ${{ steps.compare.outputs.exit_code }}
+      run: exit "$CODE"
