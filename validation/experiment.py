@@ -10,6 +10,9 @@ import math
 import sys
 from collections import Counter, defaultdict
 
+# Run as a script in CI without pip-installing the package: put the repo root on the path.
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
 from replaydiff import compare as cp
 
 N_VALUES = (3, 5)
