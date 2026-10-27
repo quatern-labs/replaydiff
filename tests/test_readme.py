@@ -46,12 +46,13 @@ def test_readme_example_runs_verbatim(tmp_path):
     if offline:  # build with the installed backend, no network
         env.update(PIP_NO_INDEX="1", PIP_NO_BUILD_ISOLATION="0")
     r = subprocess.run(["bash", "-c", script], cwd=checkout, env=env, capture_output=True, text=True, timeout=180)
-    if r.returncode and not offline and re.search(r"Could not find a version|No matching distribution|Connection",
-                                                  r.stderr):
+    # the script has no `set -e`, so a failed `pip install .` only shows up as a missing command later
+    if not offline and "command not found" in r.stderr and re.search(
+            r"Could not find a version|No matching distribution|Connection|resolution|Max retries", r.stderr):
         pytest.skip("pip needs PyPI for the build backend and it is unreachable")
     assert r.returncode == 0, r.stdout + r.stderr
     # pip's own progress lines come first; from the generator's first line on, the output is what the README shows
-    assert r.stdout[r.stdout.index("wrote 5"):].strip() == expected.strip()
+    assert r.stdout[r.stdout.index("wrote 5"):].strip() == expected.strip(), r.stderr
     where = subprocess.run([str(checkout / ".venv/bin/python"), "-c", "import replaydiff;print(replaydiff.__file__)"],
                            cwd=tmp_path, env=env, capture_output=True, text=True).stdout
     assert str(checkout / ".venv") in where  # the run used the freshly installed copy
