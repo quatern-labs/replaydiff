@@ -1,0 +1,12 @@
+# Tolerances for the README example (docs/design.md). Fixed limits: noise never widens them.
+version: 1
+defaults: {match: nearest, max_dt: 0.02, skip_first: 1.0, stat: p95}
+rate: {rel: 0.10}
+topics:
+  /cmd_vel:
+    fields:
+      linear.x: {abs: 0.01}      # m/s
+      angular.z: {abs: 0.03}     # rad/s
+  /odom:
+    match: interpolate
+    pose: {translation: 0.01, rotation_deg: 1.0}   # m, deg
