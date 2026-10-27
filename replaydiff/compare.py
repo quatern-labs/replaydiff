@@ -1,9 +1,10 @@
-"""Prototype of the replaydiff compare step, for the validation experiment only.
+"""The replaydiff compare step (docs/design.md), validated by the experiment in validation/.
 
-Implements the parts of docs/design.md that the experiment exercises: per-topic message matching (nearest,
+Implements: per-topic message matching (nearest,
 interpolate), per-field errors for Twist/TwistStamped and Odometry, the p95 stat, the noise floor from N base
 runs, the INCONCLUSIVE / FAIL / PASS rule, the bias-window test and the message-count / rate check.
-Not implemented: Path, JointState, TF, `sequence` matching, drift per metre, time-shift estimation.
+Path is compared with `match: sequence` (i-th message with i-th).
+Not implemented: JointState, TF, `sequence` matching, drift per metre, time-shift estimation.
 
 Messages are duck-typed (attribute access), so unit tests use plain SimpleNamespace objects and need no ROS.
 """
@@ -119,6 +120,7 @@ class Quantity:
     rel: float = 0.0
     kind: str = "lin"          # lin (vector, error = norm of difference) | quat (error = rotation angle, deg)
     bias: dict | None = None   # {window, abs}; only for scalar (single-component) quantities
+    param: float = 0.0         # path: resample step, m
 
 
 def quantities_for(topic_cfg: dict, sample_msg) -> list[Quantity]:
@@ -126,7 +128,12 @@ def quantities_for(topic_cfg: dict, sample_msg) -> list[Quantity]:
     out: list[Quantity] = []
     is_odom = hasattr(sample_msg, "pose") and hasattr(sample_msg.pose, "pose")
     bias = topic_cfg.get("bias")
-    if is_odom:
+    if hasattr(sample_msg, "poses"):
+        spec = topic_cfg.get("path", {})
+        for key in ("mean_dist", "hausdorff", "endpoint"):
+            if key in spec:
+                out.append(Quantity(f"path.{key}", None, spec[key], kind="path", param=spec.get("resample", 0.05)))
+    elif is_odom:
         pose = topic_cfg.get("pose", {})
         tw = topic_cfg.get("twist", {})
         if "translation" in pose:
@@ -185,8 +192,42 @@ class Errors:
     n_unmatched: int               # of those, with no reference within max_dt / max_gap
 
 
+def _resampled_xy(path_msg, step: float) -> np.ndarray:
+    xy = np.array([[p.pose.position.x, p.pose.position.y] for p in path_msg.poses], dtype=float).reshape(-1, 2)
+    if len(xy) < 2:
+        return xy
+    s = np.concatenate([[0.0], np.cumsum(np.linalg.norm(np.diff(xy, axis=0), axis=1))])
+    grid = np.append(np.arange(0.0, s[-1], step), s[-1])
+    return np.stack([np.interp(grid, s, xy[:, 0]), np.interp(grid, s, xy[:, 1])], axis=1)
+
+
+def path_metrics(a, b, step: float) -> dict:
+    """mean point distance (index-wise on the resampled paths), Hausdorff and endpoint distance, in m."""
+    pa, pb = _resampled_xy(a, step), _resampled_xy(b, step)
+    if len(pa) == 0 or len(pb) == 0:
+        return {"mean_dist": math.inf, "hausdorff": math.inf, "endpoint": math.inf}
+    n = min(len(pa), len(pb))
+    d = np.linalg.norm(pa[:, None] - pb[None], axis=2)
+    return {"mean_dist": float(np.linalg.norm(pa[:n] - pb[:n], axis=1).mean()),
+            "hausdorff": float(max(d.min(axis=1).max(), d.min(axis=0).max())),
+            "endpoint": float(np.linalg.norm(pa[-1] - pb[-1]))}
+
+
+def _path_errors(ref: Series, cmp: Series, q: Quantity, cfg: dict, lo: float, hi: float) -> Errors:
+    """`sequence` matching: i-th path in the window with i-th. A count mismatch is left to the rate check."""
+    stamp = cfg["stamp"]
+    ra = [m for m, t in zip(ref.msgs, ref.times(stamp)) if lo <= t <= hi]
+    cb = [(m, t) for m, t in zip(cmp.msgs, cmp.times(stamp)) if lo <= t <= hi]
+    key = q.name.split(".", 1)[1]
+    n = min(len(ra), len(cb))
+    err = np.array([path_metrics(ra[i], cb[i][0], q.param)[key] for i in range(n)])
+    return Errors(np.array([t for _, t in cb[:n]]), err, None, len(cb), len(cb) - n)
+
+
 def pair_errors(ref: Series, cmp: Series, q: Quantity, cfg: dict, lo: float, hi: float) -> Errors:
     """Errors of `cmp` against `ref` for one quantity. Unmatched messages are counted, never filled in."""
+    if q.kind == "path":
+        return _path_errors(ref, cmp, q, cfg, lo, hi)
     stamp = cfg["stamp"]
     ta, tb = ref.times(stamp), cmp.times(stamp)
     inwin = (tb >= lo) & (tb <= hi)
@@ -413,23 +454,41 @@ def load_config(path: str) -> dict:
         return yaml.safe_load(f)
 
 
+def format_report(report: Report) -> str:
+    lines = [f"{'verdict':13} {'topic':20} {'quantity':20} {'noise':>9} {'head':>9} {'tol':>9}"]
+
+    def num(x):
+        return "-" if x is None else f"{x:.4g}"
+
+    for r in report.results:
+        lines.append(f"{r.verdict:13} {r.topic:20} {r.quantity:20} {num(r.noise):>9} {num(r.head_error):>9} "
+                     f"{num(r.tolerance):>9}" + ("  " + "; ".join(r.reasons) if r.reasons else ""))
+    lines.append(f"VERDICT {report.verdict}")
+    return "\n".join(lines)
+
+
 def main(argv=None) -> int:
-    ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    ap.add_argument("--config", required=True, help="YAML tolerance file")
+    """Exit 0 same within tolerance, 1 regression, 2 can't tell or something failed (docs/design.md)."""
+    ap = argparse.ArgumentParser(prog="replaydiff compare", description="Compare a head recording against base runs.")
     ap.add_argument("--base", nargs="+", required=True, help="N >= 2 base-run MCAPs (the noise floor)")
     ap.add_argument("--head", required=True, help="head-run MCAP")
-    ap.add_argument("--json", help="write the report here")
+    ap.add_argument("--tolerances", "--config", dest="tolerances", required=True, help="YAML tolerance file")
+    ap.add_argument("--json", nargs="?", const="-", help="write the JSON report to this file (stdout if no value)")
     args = ap.parse_args(argv)
-    cfg = load_config(args.config)
-    topics = list(cfg["topics"])
-    report = evaluate([read_mcap(p, topics) for p in args.base], read_mcap(args.head, topics), cfg)
-    for r in report.results:
-        print(f"{r.verdict:13} {r.topic} {r.quantity}  noise={r.noise} head={r.head_error} tol={r.tolerance}  "
-              + "; ".join(r.reasons))
-    print(f"VERDICT {report.verdict}")
-    if args.json:
-        with open(args.json, "w") as f:
-            json.dump(report.to_dict(), f, indent=2)
+    try:
+        cfg = load_config(args.tolerances)
+        topics = list(cfg["topics"])
+        report = evaluate([read_mcap(p, topics) for p in args.base], read_mcap(args.head, topics), cfg)
+    except Exception as e:  # unreadable file, bad config: "something failed", not a verdict
+        print(f"replaydiff: error: {type(e).__name__}: {e}", file=sys.stderr)
+        return 2
+    if args.json == "-":
+        print(json.dumps(report.to_dict(), indent=2))
+    else:
+        print(format_report(report))
+        if args.json:
+            with open(args.json, "w") as f:
+                json.dump(report.to_dict(), f, indent=2)
     return report.exit_code
 
 
