@@ -10,6 +10,7 @@ regressions. Regressions are parameter overlays on this same code:
   lookahead        lookahead distance, m
   odom_offset_x    0.0 -> 0.02        (2 cm offset)
   publish_odom     true -> false      (dropped topic)
+  plan_transient_local  false -> true  (/plan subscribed transient-local, to get a latched plan: see latched_plan_node.py)
 """
 import math
 
@@ -17,7 +18,7 @@ import rclpy
 from geometry_msgs.msg import Twist
 from nav_msgs.msg import Odometry, Path
 from rclpy.node import Node
-from rclpy.qos import QoSProfile, ReliabilityPolicy
+from rclpy.qos import DurabilityPolicy, QoSProfile, ReliabilityPolicy
 
 
 def yaw_of(q):
@@ -32,11 +33,14 @@ class Sut(Node):
         self.offset_x = self.declare_parameter("odom_offset_x", 0.0).value
         self.publish_odom = self.declare_parameter("publish_odom", True).value
         self.v_cruise = self.declare_parameter("cruise_speed", 0.2).value
+        plan_latched = self.declare_parameter("plan_transient_local", False).value
         self.path = []
         qos = QoSProfile(depth=50, reliability=ReliabilityPolicy.RELIABLE)
         self.cmd_pub = self.create_publisher(Twist, "/sut/cmd_vel", qos)
         self.odom_pub = self.create_publisher(Odometry, "/sut/odom", qos) if self.publish_odom else None
-        self.create_subscription(Path, "/plan", self.on_plan, qos)
+        plan_qos = QoSProfile(depth=50, reliability=ReliabilityPolicy.RELIABLE,
+                              durability=DurabilityPolicy.TRANSIENT_LOCAL if plan_latched else DurabilityPolicy.VOLATILE)
+        self.create_subscription(Path, "/plan", self.on_plan, plan_qos)
         self.create_subscription(Odometry, "/odom", self.on_odom, qos)
 
     def on_plan(self, msg):

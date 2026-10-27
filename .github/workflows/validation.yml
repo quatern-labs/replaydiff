@@ -13,6 +13,10 @@ on:
         description: "Also run the Jazzy jobs (known-failing: nav2 does not come up in the headless sim on ubuntu-24.04)"
         type: boolean
         default: false
+      scand_run_id:
+        description: "Run id whose artifact recording-scand (the prepared SCAND window) the scand-replay job replays; empty = skip"
+        type: string
+        default: ""
   pull_request:
     paths:
       - "validation/**"
@@ -110,6 +114,51 @@ jobs:
         with:
           name: result-${{ matrix.distro }}-${{ matrix.rate }}-rep${{ matrix.rep }}${{ matrix.set == 'near' && '-near' || '' }}
           path: result-*.json
+          retention-days: 14
+          if-no-files-found: error
+
+  # Manual only: the prepared SCAND window comes from an earlier run's artifact (Dataverse 403s GitHub runners).
+  # Replays with /plan latched (LATCH_PLAN=1: transient-local /plan, see validation/ci/latched_plan_node.py).
+  scand-replay:
+    name: scand replay (humble ${{ matrix.rate }}x rep ${{ matrix.rep }})
+    if: ${{ inputs.scand_run_id != '' }}
+    runs-on: ubuntu-22.04
+    container: ros:humble
+    timeout-minutes: 60
+    permissions:
+      actions: read
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        rate: ["0.5", "1.0"]
+        rep: [1, 2, 3]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install dependencies
+        run: validation/ci/setup_ros.sh humble
+      - uses: actions/download-artifact@v4
+        with:
+          name: recording-scand
+          run-id: ${{ inputs.scand_run_id }}
+          github-token: ${{ github.token }}
+          path: ${{ runner.temp }}/recording
+      - name: Replay base x6 and the injected regressions (controls)
+        env:
+          LATCH_PLAN: "1"
+        run: >
+          validation/ci/run_experiment.sh humble "$RUNNER_TEMP/recording" ${{ matrix.rate }}
+          "$RUNNER_TEMP/runs" ${{ matrix.rep }} controls
+      - name: Compare (N=3 and N=5)
+        run: >
+          python3 validation/experiment.py analyze --runs-dir "$RUNNER_TEMP/runs" --distro humble
+          --rate ${{ matrix.rate }} --config validation/tolerances.yaml --set controls
+          --out "scand-result-humble-${{ matrix.rate }}-rep${{ matrix.rep }}.json"
+      - uses: actions/upload-artifact@v4
+        if: ${{ !cancelled() }}
+        with:
+          name: scand-result-humble-${{ matrix.rate }}-rep${{ matrix.rep }}
+          path: scand-result-*.json
           retention-days: 14
           if-no-files-found: error
 

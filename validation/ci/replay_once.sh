@@ -2,6 +2,7 @@
 # One replay: play the recorded inputs at <rate> with /clock, run the system under test with use_sim_time and the
 # given parameter overlay, record its outputs (/sut/cmd_vel, /sut/odom) with sim time as the log time.
 # Usage: replay_once.sh <distro> <recording_dir> <out_dir> <rate> [ros param overlay, e.g. -p velocity_gain:=1.1]
+# LATCH_PLAN=1: /plan is replayed as /plan_in and republished latched (latched_plan_node.py); the SUT subscribes transient-local.
 set -euo pipefail
 distro="${1:?distro}"; rec="${2:?recording}"; out="${3:?out}"; rate="${4:?rate}"; shift 4
 here="$(cd "$(dirname "$0")" && pwd)"
@@ -17,11 +18,18 @@ trap cleanup EXIT
 
 ros2 bag record -s mcap --use-sim-time -o "$out" /sut/cmd_vel /sut/odom > "$out.record.log" 2>&1 &
 recpid=$!; pids+=("$recpid")
+play_remap=()
+if [ "${LATCH_PLAN:-0}" = 1 ]; then
+  python3 "$here/latched_plan_node.py" --ros-args -p use_sim_time:=true > "$out.latch.log" 2>&1 &
+  pids+=("$!")
+  play_remap=(--remap /plan:=/plan_in)
+  set -- "$@" -p plan_transient_local:=true
+fi
 python3 "$here/sut.py" --ros-args -p use_sim_time:=true "$@" > "$out.sut.log" 2>&1 &
 sutpid=$!; pids+=("$sutpid")
 sleep 4   # discovery: recorder and SUT subscribed before the first message
 # bag path first: --topics takes several values. Only the recorded inputs are replayed, never the original /cmd_vel.
-ros2 bag play "$rec" --clock 1000 -r "$rate" --topics /odom /scan /tf /tf_static /plan > "$out.play.log" 2>&1
+ros2 bag play "$rec" --clock 1000 -r "$rate" --topics /odom /scan /tf /tf_static /plan ${play_remap[@]+"${play_remap[@]}"} > "$out.play.log" 2>&1
 sleep 2
 kill -INT "$recpid" 2>/dev/null || true
 wait "$recpid" 2>/dev/null || true
