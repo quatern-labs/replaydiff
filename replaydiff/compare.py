@@ -1,7 +1,6 @@
-"""Prototype of the replaydiff compare step, for the validation experiment only.
+"""The replaydiff compare step (docs/design.md), validated by the experiment in validation/.
 
-Implements the parts of docs/design.md that the experiment exercises: per-topic message matching (nearest,
-interpolate), per-field errors for Twist/TwistStamped and Odometry, the p95 stat, the noise floor from N base
+Implements: per-topic message matching (nearest, interpolate), per-field errors for Twist/TwistStamped and Odometry, the p95 stat, the noise floor from N base
 runs, the INCONCLUSIVE / FAIL / PASS rule, the bias-window test and the message-count / rate check.
 Not implemented: Path, JointState, TF, `sequence` matching, drift per metre, time-shift estimation.
 
@@ -413,23 +412,41 @@ def load_config(path: str) -> dict:
         return yaml.safe_load(f)
 
 
+def format_report(report: Report) -> str:
+    lines = [f"{'verdict':13} {'topic':20} {'quantity':20} {'noise':>9} {'head':>9} {'tol':>9}"]
+
+    def num(x):
+        return "-" if x is None else f"{x:.4g}"
+
+    for r in report.results:
+        lines.append(f"{r.verdict:13} {r.topic:20} {r.quantity:20} {num(r.noise):>9} {num(r.head_error):>9} "
+                     f"{num(r.tolerance):>9}" + ("  " + "; ".join(r.reasons) if r.reasons else ""))
+    lines.append(f"VERDICT {report.verdict}")
+    return "\n".join(lines)
+
+
 def main(argv=None) -> int:
-    ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    ap.add_argument("--config", required=True, help="YAML tolerance file")
+    """Exit 0 same within tolerance, 1 regression, 2 can't tell or something failed (docs/design.md)."""
+    ap = argparse.ArgumentParser(prog="replaydiff compare", description="Compare a head recording against base runs.")
     ap.add_argument("--base", nargs="+", required=True, help="N >= 2 base-run MCAPs (the noise floor)")
     ap.add_argument("--head", required=True, help="head-run MCAP")
-    ap.add_argument("--json", help="write the report here")
+    ap.add_argument("--tolerances", "--config", dest="tolerances", required=True, help="YAML tolerance file")
+    ap.add_argument("--json", nargs="?", const="-", help="write the JSON report to this file (stdout if no value)")
     args = ap.parse_args(argv)
-    cfg = load_config(args.config)
-    topics = list(cfg["topics"])
-    report = evaluate([read_mcap(p, topics) for p in args.base], read_mcap(args.head, topics), cfg)
-    for r in report.results:
-        print(f"{r.verdict:13} {r.topic} {r.quantity}  noise={r.noise} head={r.head_error} tol={r.tolerance}  "
-              + "; ".join(r.reasons))
-    print(f"VERDICT {report.verdict}")
-    if args.json:
-        with open(args.json, "w") as f:
-            json.dump(report.to_dict(), f, indent=2)
+    try:
+        cfg = load_config(args.tolerances)
+        topics = list(cfg["topics"])
+        report = evaluate([read_mcap(p, topics) for p in args.base], read_mcap(args.head, topics), cfg)
+    except Exception as e:  # unreadable file, bad config: "something failed", not a verdict
+        print(f"replaydiff: error: {type(e).__name__}: {e}", file=sys.stderr)
+        return 2
+    if args.json == "-":
+        print(json.dumps(report.to_dict(), indent=2))
+    else:
+        print(format_report(report))
+        if args.json:
+            with open(args.json, "w") as f:
+                json.dump(report.to_dict(), f, indent=2)
     return report.exit_code
 
 

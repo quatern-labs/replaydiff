@@ -8,9 +8,10 @@ replaydiff runs a recording through your stack at two git refs, records the outp
 against a per-topic tolerance file, and exits 0 (same behavior within tolerance), 1 (regression) or 2 (can't tell:
 the replay is too noisy for the tolerance you set, or something failed). It is built to run in CI on pull requests.
 
-**Status: design only. Nothing is implemented yet.** The design is in [docs/design.md](docs/design.md).
+**Status: early prototype.** `replaydiff compare` works for Twist and Odometry topics (see Usage). The other
+comparators and the GitHub Action are still planned. The design is in [docs/design.md](docs/design.md).
 
-Planned first release:
+Planned for the first release (Twist and Odometry exist; the rest is not built yet):
 - Comparators for `geometry_msgs/Twist`, `nav_msgs/Odometry`, `nav_msgs/Path`, `sensor_msgs/JointState` and `/tf`.
 - A YAML tolerance file with absolute/relative limits, matching modes and warmup windows.
 - A measured noise floor (the base version replayed several times), so timing jitter can't pass as a regression
@@ -19,7 +20,15 @@ Planned first release:
 
 Replay and recording use [replay_testing](https://github.com/polymathrobotics/replay_testing).
 
-CI runs `make test` on every pull request and every push to main.
-
 ## License
 Apache License 2.0. See [LICENSE](LICENSE).
+
+## Usage
+
+```
+pip install .
+replaydiff compare --base base0.mcap base1.mcap base2.mcap --head head.mcap --tolerances tolerances.yaml
+```
+
+Exit 0: same within tolerance. 1: regression. 2: can't tell (noisy base runs, too few base runs) or something failed.
+`--json` prints the report as JSON. Comparing needs no ROS install. Compared today: Twist, Odometry.

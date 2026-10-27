@@ -48,6 +48,6 @@ def test_loader_rejects_duplicate_key():
 
 
 def test_tolerance_file_loads():
-    import compare_proto
+    from replaydiff import compare as compare_proto
     cfg = compare_proto.load_config(str(ROOT / "validation" / "tolerances.yaml"))
     assert set(cfg["topics"]) == {"/sut/cmd_vel", "/sut/odom"}

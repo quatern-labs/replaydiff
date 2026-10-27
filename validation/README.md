@@ -39,7 +39,7 @@ replaydiff CLI.
    A FAIL below 0.9x from any other check is a false FAIL. The report has one row per regression, rate and N with the
    measured effect, PASS / FAIL / INCONCLUSIVE counts, which check fired (p95, bias, count, missing), the correct
    answer and the false-FAIL / miss / INCONCLUSIVE rates.
-7. **Compare.** `compare_proto.py` follows design.md: tolerance fixed, noise = worst base-vs-base p95 over all base
+7. **Compare.** `replaydiff/compare.py` follows design.md: tolerance fixed, noise = worst base-vs-base p95 over all base
    pairs; noise > 0.5 x tolerance -> INCONCLUSIVE; else FAIL if head p95 > tolerance against every base run (the
    reported value is the smallest); bias-window test (mean signed error per 2 s window must exceed `bias.abs` and 3x
    the RMS of the base-vs-base window biases); message-count check (head count differs by more than 10% from every
@@ -88,7 +88,7 @@ silently widen them.
   Artifacts: `validation-results` (`results/validation.json`, `results/validation.md`), per-job `result-*`
   files, short-lived `recording-<distro>`.
 - Compare two or more bags yourself:
-  `python validation/compare_proto.py --config validation/tolerances.yaml --base b0.mcap b1.mcap b2.mcap --head h.mcap`
+  `replaydiff compare --tolerances validation/tolerances.yaml --base b0.mcap b1.mcap b2.mcap --head h.mcap`
   (exit 0 pass, 1 FAIL, 2 INCONCLUSIVE).
 
 ## What would count as success

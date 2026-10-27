@@ -3,7 +3,7 @@ from types import SimpleNamespace as NS
 
 import numpy as np
 
-from compare_proto import make_series
+from replaydiff.compare import make_series
 
 
 def vec(x=0.0, y=0.0, z=0.0):
@@ -63,3 +63,62 @@ CONFIG = {
         },
     },
 }
+
+
+# --- MCAP fixture for the CLI tests (a few KB; reduced message definitions: no covariances, no frame ids) ---
+_SEP = "=" * 80 + "\n"
+_V3 = "MSG: geometry_msgs/Vector3\nfloat64 x\nfloat64 y\nfloat64 z\n"
+_Q = "MSG: geometry_msgs/Quaternion\nfloat64 x\nfloat64 y\nfloat64 z\nfloat64 w\n"
+_P = "MSG: geometry_msgs/Point\nfloat64 x\nfloat64 y\nfloat64 z\n"
+_POSE = "MSG: geometry_msgs/Pose\ngeometry_msgs/Point position\ngeometry_msgs/Quaternion orientation\n"
+_TW = "MSG: geometry_msgs/Twist\ngeometry_msgs/Vector3 linear\ngeometry_msgs/Vector3 angular\n"
+_HDR = "MSG: std_msgs/Header\nbuiltin_interfaces/Time stamp\nstring frame_id\n"
+_TIME = "MSG: builtin_interfaces/Time\nint32 sec\nuint32 nanosec\n"
+DEFS = {
+    "geometry_msgs/msg/Twist": ("geometry_msgs/Vector3 linear\ngeometry_msgs/Vector3 angular\n" + _SEP + _V3),
+    "nav_msgs/msg/Odometry": ("std_msgs/Header header\ngeometry_msgs/PoseWithCovariance pose\n"
+                              "geometry_msgs/TwistWithCovariance twist\n" + _SEP + _HDR + _SEP + _TIME + _SEP
+                              + "MSG: geometry_msgs/PoseWithCovariance\ngeometry_msgs/Pose pose\n" + _SEP + _POSE
+                              + _SEP + _P + _SEP + _Q + _SEP
+                              + "MSG: geometry_msgs/TwistWithCovariance\ngeometry_msgs/Twist twist\n" + _SEP + _TW
+                              + _SEP + _V3),
+}
+
+
+def _xyz(x=0.0, y=0.0, z=0.0):
+    return {"x": x, "y": y, "z": z}
+
+
+def write_mcap(path, *, gain=1.0, offset=0.0, seed=0, jitter=1e-4, times=TIMES[:400:4]):
+    """Write /cmd_vel (Twist), /odom (Odometry) to an MCAP. One call = one replay run: the
+    seed gives each base run its own small noise; `gain` and `offset` inject regressions."""
+    import math
+    from mcap_ros2.writer import Writer
+    rng = np.random.default_rng(seed)
+    with open(path, "wb") as f:
+        w = Writer(f)
+        sch = {k: w.register_msgdef(k, v) for k, v in DEFS.items()}
+        for t in times:
+            ns = int(t * 1e9)
+            vx = gain * (0.2 + 0.05 * math.sin(t / 3)) + rng.normal(0, jitter)
+            w.write_message("/cmd_vel", sch["geometry_msgs/msg/Twist"],
+                            {"linear": _xyz(vx), "angular": _xyz(0, 0, 0.1)}, log_time=ns, publish_time=ns)
+            x = 0.2 * t + offset + rng.normal(0, jitter)
+            hdr = {"stamp": {"sec": int(t + 1), "nanosec": int(round((t % 1) * 1e9))}, "frame_id": "odom"}
+            w.write_message("/odom", sch["nav_msgs/msg/Odometry"], {
+                "header": hdr, "pose": {"pose": {"position": _xyz(x), "orientation": {"x": 0, "y": 0, "z": 0, "w": 1}}},
+                "twist": {"twist": {"linear": _xyz(0.2), "angular": _xyz()}}}, log_time=ns, publish_time=ns)
+        w.finish()
+
+
+CLI_TOLERANCES = """
+defaults: {skip_first: 1.0, stat: p95}
+rate: {rel: 0.10}
+topics:
+  /cmd_vel:
+    fields: {linear.x: {abs: 0.01}}
+    bias: {window: 2.0, abs: 0.005}
+  /odom:
+    match: interpolate
+    pose: {translation: 0.01}
+"""
