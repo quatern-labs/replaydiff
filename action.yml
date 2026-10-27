@@ -1,0 +1,85 @@
+name: replaydiff compare
+description: Compare a head replay recording against base runs with replaydiff and post the report on the pull request.
+inputs:
+  base:
+    description: Space-separated base-run MCAP paths (two or more; they set the noise floor).
+    required: true
+  head:
+    description: Head-run MCAP path.
+    required: true
+  tolerances:
+    description: YAML tolerance file.
+    required: true
+  inconclusive:
+    description: "`fail` (default) fails the step on an inconclusive verdict (exit 2); `pass` lets it through."
+    default: fail
+  comment:
+    description: "Post or update one comment on the pull request (needs the pull-requests write permission)."
+    default: "true"
+  python-version:
+    description: Python version used to run replaydiff.
+    default: "3.11"
+outputs:
+  verdict:
+    description: PASS, FAIL or INCONCLUSIVE ("ERROR" if the tool failed).
+    value: ${{ steps.compare.outputs.verdict }}
+runs:
+  using: composite
+  steps:
+    - uses: actions/setup-python@v5
+      with:
+        python-version: ${{ inputs.python-version }}
+    - name: Install replaydiff
+      shell: bash
+      run: python -m pip install "${{ github.action_path }}"
+    - name: Compare
+      id: compare
+      shell: bash
+      env:
+        BASE: ${{ inputs.base }}
+        HEAD: ${{ inputs.head }}
+        TOLERANCES: ${{ inputs.tolerances }}
+        INCONCLUSIVE: ${{ inputs.inconclusive }}
+      run: |
+        out="${RUNNER_TEMP}/replaydiff"; mkdir -p "$out"
+        echo "report=$out" >> "$GITHUB_OUTPUT"
+        code=0
+        # shellcheck disable=SC2086
+        replaydiff compare --base $BASE --head "$HEAD" --tolerances "$TOLERANCES" \
+          --json "$out/report.json" --markdown "$out/report.md" > "$out/report.txt" || code=$?
+        cat "$out/report.txt"
+        verdict=ERROR
+        if [ -f "$out/report.json" ]; then
+          verdict=$(python -c 'import json,sys; print(json.load(open(sys.argv[1]))["verdict"])' "$out/report.json")
+        fi
+        echo "verdict=$verdict" >> "$GITHUB_OUTPUT"
+        [ -f "$out/report.md" ] && cat "$out/report.md" >> "$GITHUB_STEP_SUMMARY"
+        if [ "$code" = 2 ] && [ "$verdict" = INCONCLUSIVE ] && [ "$INCONCLUSIVE" = pass ]; then code=0; fi
+        echo "exit_code=$code" >> "$GITHUB_OUTPUT"
+    - uses: actions/upload-artifact@v4
+      if: always()
+      with:
+        name: replaydiff-report
+        path: ${{ steps.compare.outputs.report }}
+        if-no-files-found: ignore
+    - name: Post PR comment
+      if: always() && inputs.comment == 'true' && github.event_name == 'pull_request' && hashFiles(format('{0}/report.md', steps.compare.outputs.report)) != ''
+      shell: bash
+      env:
+        GH_TOKEN: ${{ github.token }}
+        REPORT: ${{ steps.compare.outputs.report }}/report.md
+        PR: ${{ github.event.pull_request.number }}
+        REPO: ${{ github.repository }}
+      run: |
+        marker='<!-- replaydiff-report -->'
+        body=$(printf '%s\n%s' "$marker" "$(cat "$REPORT")")
+        id=$(gh api --paginate "repos/$REPO/issues/$PR/comments" \
+          --jq "[.[] | select(.body | startswith(\"$marker\"))][0].id // empty" | head -n1)
+        if [ -n "$id" ]; then
+          gh api -X PATCH "repos/$REPO/issues/comments/$id" -f body="$body" > /dev/null
+        else
+          gh api -X POST "repos/$REPO/issues/$PR/comments" -f body="$body" > /dev/null
+        fi
+    - name: Exit with the tool's code
+      shell: bash
+      run: exit ${{ steps.compare.outputs.exit_code }}

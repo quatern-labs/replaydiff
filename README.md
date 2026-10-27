@@ -31,3 +31,18 @@ replaydiff compare --base base0.mcap base1.mcap base2.mcap --head head.mcap --to
 
 Exit 0: same within tolerance. 1: regression. 2: can't tell (noisy base runs, too few base runs) or something failed.
 `--json` prints the report as JSON. Comparing needs no ROS install. Compared today: Twist, Odometry, Path.
+
+## GitHub Action
+```yaml
+permissions: {pull-requests: write}
+steps:
+  - uses: quatern-labs/replaydiff@main
+    with:
+      base: runs/base0.mcap runs/base1.mcap runs/base2.mcap
+      head: runs/head.mcap
+      tolerances: replaydiff.yaml
+```
+Runs `replaydiff compare` on recordings you already produced, uploads `report.json`, `report.md` and `report.txt` as
+the `replaydiff-report` artifact, adds the table to the job summary, and on `pull_request` events posts or updates one
+PR comment (`comment: "false"` turns that off). The step exits with the tool's code; `inconclusive: pass` lets an
+inconclusive verdict through (a tool error still fails). The workflow has not yet run on GitHub.

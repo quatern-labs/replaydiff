@@ -533,6 +533,22 @@ def format_report(report: Report) -> str:
     return "\n".join(lines)
 
 
+def format_markdown(report: Report) -> str:
+    """The report as a PR-comment-sized table (docs/design.md: report.md)."""
+    def num(x):
+        return "-" if x is None else f"{x:.4g}"
+
+    icon = {"PASS": "✅", "FAIL": "❌", "INCONCLUSIVE": "⚠️"}
+    lines = [f"### replaydiff: {icon[report.verdict]} {report.verdict}", ""]
+    head = report.headline()
+    if head and report.verdict != "PASS":
+        lines += [f"Deciding row: `{head.topic}` `{head.quantity}`" + (f" ({'; '.join(head.reasons)})" if head.reasons else ""), ""]
+    lines += ["| verdict | topic | quantity | noise | head | tolerance |", "|---|---|---|---:|---:|---:|"]
+    for r in report.results:
+        lines.append(f"| {r.verdict} | `{r.topic}` | {r.quantity} | {num(r.noise)} | {num(r.head_error)} | {num(r.tolerance)} |")
+    return "\n".join(lines) + "\n"
+
+
 def main(argv=None) -> int:
     """Exit 0 same within tolerance, 1 regression, 2 can't tell or something failed (docs/design.md)."""
     ap = argparse.ArgumentParser(prog="replaydiff compare", description="Compare a head recording against base runs.")
@@ -540,6 +556,7 @@ def main(argv=None) -> int:
     ap.add_argument("--head", required=True, help="head-run MCAP")
     ap.add_argument("--tolerances", "--config", dest="tolerances", required=True, help="YAML tolerance file")
     ap.add_argument("--json", nargs="?", const="-", help="write the JSON report to this file (stdout if no value)")
+    ap.add_argument("--markdown", help="also write the report as a Markdown table to this file")
     args = ap.parse_args(argv)
     try:
         cfg = load_config(args.tolerances)
@@ -549,6 +566,9 @@ def main(argv=None) -> int:
     except Exception as e:  # unreadable file, bad config: "something failed", not a verdict
         print(f"replaydiff: error: {type(e).__name__}: {e}", file=sys.stderr)
         return 2
+    if args.markdown:
+        with open(args.markdown, "w") as f:
+            f.write(format_markdown(report))
     if args.json == "-":
         print(json.dumps(report.to_dict(), indent=2))
     else:

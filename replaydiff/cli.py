@@ -1,7 +1,7 @@
 """`replaydiff` console script."""
 import sys
 
-USAGE = "usage: replaydiff compare --base <mcap>... --head <mcap> --tolerances <file.yaml> [--json [FILE]]"
+USAGE = "usage: replaydiff compare --base <mcap>... --head <mcap> --tolerances <file.yaml> [--json [FILE]] [--markdown FILE]"
 
 
 def main(argv=None) -> int:
