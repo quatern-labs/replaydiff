@@ -18,6 +18,13 @@ Previous fixes (rd-008, rd-009):
 - ROS runs only in GitHub Actions CI; bash syntax verified locally but logic unverified until CI runs.
 - Image apt packages (git, python3-pip, etc.) assumed available via apt in ros:humble/jazzy containers.
 
+## PR #5: CI Workflow for make test
+
+- Added `.github/workflows/test.yml`: runs `make test` on every PR and push to main with Python 3.10, `pip install -e ".[dev]"`.
+- Updated README with workflow line.
+- State: `make test` green (47 passed on dc332c6, 42 passed on 4f9a29f). No code changes needed; no tests require AF_UNIX sockets.
+- Open: earlier unrecorded red result in quatern-ops gate environment (not this branch code); workflow runs on GitHub should be checked.
+
 ## Prior Art and README Updates
 
 - docs/design.md: added RoboTrace and ros2_watch rows to prior-art table; "Conclusion:" scoped to the tools listed, removed unsourced claims.
@@ -49,6 +56,15 @@ Previous fixes (rd-008, rd-009):
 - `gen_recording.sh` records `/clock`, saves sim map, writes `goals.yaml`; `setup_ros.sh` gained `nav2` and `slam` modes. Docs: README section, RECORDINGS.md (maps, SLAM Toolbox license).
 - State: `make test` green (offline helpers only). ROS side unverified until CI runs.
 - Still waits: wiring into workflow and `run_experiment.sh` (rewritten by PR #2), SCAND run (prepare-recording job, pinned bag/window, SLAM map cached), `/tf` frames to drop (--drop-children default is TurtleBot3's) and map→odom assumption (identity). Needs PR #2 merged and SCAND pin.
+
+## Latched /plan for SCAND Replay
+
+- Added `validation/latched_plan.py` (`PlanLatch`, `durability_name`) and `validation/ci/latched_plan_node.py` (republishes `/plan_in` as transient-local `/plan`, keeps newest plan with >= 2 poses).
+- `sut.py`: new parameter `plan_transient_local` (default false). `replay_once.sh`: `LATCH_PLAN=1` remaps bag's `/plan` to `/plan_in`, runs node, sets SUT option.
+- `validation.yml`: manual-only `scand-replay` job (Humble, controls set, LATCH_PLAN=1), gated on `scand_run_id` input; artifact `recording-scand` holds prepared window.
+- `validation/RECORDINGS.md`: SCAND credit row; dataset license marked unconfirmed.
+- State: `test_latched_plan.py` passes offline. ROS parts (node, remap, job) unverified until CI runs.
+- Open: whether `ros2 bag play --remap` works on Humble; prepare job to publish `recording-scand` (needs SCAND pin and non-Dataverse source); confirm SCAND license; add near-tolerance set for SCAND once map step lands. No job produces `recording-scand` artifact yet.
 
 ## PR #4: Prepare-recording
 
