@@ -36,7 +36,7 @@ def test_readme_example_runs_verbatim(tmp_path):
     # (linked without replaydiff itself, else pip sees it as already installed and skips the console script)
     deps = tmp_path / "deps"
     deps.mkdir()
-    for sp in site.getsitepackages():
+    for sp in filter(os.path.isdir, site.getsitepackages()):
         for entry in pathlib.Path(sp).iterdir():
             if "replaydiff" not in entry.name.lower() and not (deps / entry.name).exists():
                 (deps / entry.name).symlink_to(entry)
