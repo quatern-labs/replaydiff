@@ -17,6 +17,17 @@ Planned first release:
   and can't hide one either.
 - A GitHub Action that posts the report on the pull request.
 
+## Non-goals
+
+replaydiff replays one recording through two code versions, applies per-topic tolerances, reports pass/fail plus a
+diff report, and runs as a GitHub Action. It does not do, and will not do:
+- cross-sensor consistency checks
+- root-cause diagnosis
+- suggested or generated fixes
+- agents
+- calibration
+- deploy
+
 Replay and recording use [replay_testing](https://github.com/polymathrobotics/replay_testing).
 
 CI runs `make test` on every pull request and every push to main.
