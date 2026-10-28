@@ -7,9 +7,11 @@ here="$(cd "$(dirname "$0")" && pwd)"
 command -v timeout >/dev/null || { echo "SKIP: coreutils timeout not on PATH"; exit 77; }
 tmp="$(mktemp -d "${TMPDIR:-/tmp}/wait_nav2.XXXXXX")"
 sim=""
-trap '[ -n "$sim" ] && kill -KILL "$sim" 2>/dev/null; pkill -KILL -f "sleep 6137" 2>/dev/null; rm -rf "$tmp"' EXIT
+trap '[ -n "$sim" ] && kill -KILL "$sim" 2>/dev/null; pkill -KILL -f "sleep $n\$" 2>/dev/null; rm -rf "$tmp"' EXIT
+# unique sleep length per run so pgrep never matches another run's (or another checkout's) stub
+n=$((20000 + RANDOM))
 mkdir -p "$tmp/hang" "$tmp/ok"
-printf '#!/usr/bin/env bash\ntrap "" TERM\nsleep 6137\n' > "$tmp/hang/ros2"
+printf '#!/usr/bin/env bash\ntrap "" TERM\nsleep %s\n' "$n" > "$tmp/hang/ros2"
 cat > "$tmp/ok/ros2" <<'STUB'
 #!/usr/bin/env bash
 case "$1" in
@@ -33,7 +35,7 @@ echo "$out" | grep -q '^ERROR: nav2 did not come up' || fail "hang case: no ERRO
 echo "$out" | grep -q 'still waiting for nav2' || fail "hang case: no heartbeat line"
 echo "$out" | grep -q 'sim log line' || fail "hang case: no sim.log tail"
 sleep 1
-! pgrep -f "sleep 6137" >/dev/null || fail "hang case: stub ros2 still running"
+! pgrep -f "sleep $n\$" >/dev/null || fail "hang case: stub ros2 still running"
 echo "hang case ok (${took} s)"
 
 start=$SECONDS
