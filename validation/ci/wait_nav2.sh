@@ -32,6 +32,13 @@ probe_loop() {
   done
 }
 
+# `timeout` puts its child in a new process group, so the group kill below misses it: kill the descendants too.
+kill_tree() {
+  local c
+  for c in $(pgrep -P "$1" 2>/dev/null); do kill_tree "$c"; done
+  kill -KILL "$1" 2>/dev/null || true
+}
+
 echo "waiting for nav2 (up to ${limit} s)"
 set -m
 probe_loop &
@@ -43,8 +50,8 @@ reason=""
 while kill -0 "$loop" 2>/dev/null; do
   now=$SECONDS
   if [ $((now - start)) -ge "$limit" ]; then
+    kill_tree "$loop"
     kill -KILL -- "-$loop" 2>/dev/null || true
-    kill -KILL "$loop" 2>/dev/null || true
     reason="deadline"
     break
   fi
