@@ -25,14 +25,6 @@ Previous fixes (rd-008, rd-009):
 - State: `make test` green (47 passed on dc332c6, 42 passed on 4f9a29f). No code changes needed; no tests require AF_UNIX sockets.
 - Open: earlier unrecorded red result in quatern-ops gate environment (not this branch code); workflow runs on GitHub should be checked.
 
-## PR #6: README Non-goals + "See why" Line
-
-- README has a "Non-goals" section (no cross-sensor consistency, root-cause diagnosis, suggested/generated fixes, agents, calibration, deploy).
-- `validation/compare_proto.py`: on a FAIL verdict with `--json <result>`, prints `See why: quatern explain <result>` once; never on pass/inconclusive.
-- Tests in `validation/tests/test_compare_proto.py`.
-- README deliberately does not mention `quatern explain` (the claims checker found no such command in quatern-code).
-- Open: the Action report line is not added, since no Action exists yet (design only).
-
 ## Prior Art and README Updates
 
 - docs/design.md: added RoboTrace and ros2_watch rows to prior-art table; "Conclusion:" scoped to the tools listed, removed unsourced claims.
