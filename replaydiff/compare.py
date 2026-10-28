@@ -533,6 +533,23 @@ def format_report(report: Report) -> str:
     return "\n".join(lines)
 
 
+def format_markdown(report: Report) -> str:
+    """report.md: a verdict table that fits a PR comment."""
+    def num(x):
+        return "-" if x is None else f"{x:.4g}"
+
+    icon = {"PASS": "pass", "FAIL": "FAIL"}
+    lines = [f"### replaydiff: {report.verdict}", "",
+             "| verdict | topic | quantity | base noise | head error | tolerance | notes |",
+             "|---|---|---|---:|---:|---:|---|"]
+    for r in report.results:
+        lines.append(f"| {icon.get(r.verdict, r.verdict)} | `{r.topic}` | {r.quantity} | {num(r.noise)} | "
+                     f"{num(r.head_error)} | {num(r.tolerance)} | {'; '.join(r.reasons)} |")
+    if report.verdict == "FAIL":
+        lines += ["", "See why: quatern explain <result>"]
+    return "\n".join(lines) + "\n"
+
+
 def main(argv=None) -> int:
     """Exit 0 same within tolerance, 1 regression, 2 can't tell or something failed (docs/design.md)."""
     ap = argparse.ArgumentParser(prog="replaydiff compare", description="Compare a head recording against base runs.")
@@ -540,12 +557,16 @@ def main(argv=None) -> int:
     ap.add_argument("--head", required=True, help="head-run MCAP")
     ap.add_argument("--tolerances", "--config", dest="tolerances", required=True, help="YAML tolerance file")
     ap.add_argument("--json", nargs="?", const="-", help="write the JSON report to this file (stdout if no value)")
+    ap.add_argument("--markdown", metavar="FILE", help="also write a PR-comment sized report.md to FILE")
     args = ap.parse_args(argv)
     try:
         cfg = load_config(args.tolerances)
         topics = list(cfg["topics"])
         runs, cfg = expand_tf([read_mcap(p, topics) for p in [*args.base, args.head]], cfg)
         report = evaluate(runs[:-1], runs[-1], cfg)
+        if args.markdown:
+            with open(args.markdown, "w") as f:
+                f.write(format_markdown(report))
     except Exception as e:  # unreadable file, bad config: "something failed", not a verdict
         print(f"replaydiff: error: {type(e).__name__}: {e}", file=sys.stderr)
         return 2
