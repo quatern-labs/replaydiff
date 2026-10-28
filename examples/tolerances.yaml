@@ -1,0 +1,10 @@
+# Tolerances for the quickstart recordings (see examples/make_example.py).
+version: 1
+defaults: {skip_first: 1.0, stat: p95}
+rate: {rel: 0.10}
+topics:
+  /cmd_vel:
+    fields: {linear.x: {abs: 0.01}}
+  /odom:
+    match: interpolate
+    pose: {translation: 0.01}
