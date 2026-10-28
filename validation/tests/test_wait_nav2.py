@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 """The nav2 wait bound (validation/ci/wait_nav2.sh), proven with stub processes; needs coreutils `timeout`."""
 import shutil
 import subprocess

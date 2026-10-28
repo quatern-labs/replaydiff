@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 """Synthetic in-memory runs for the unit tests (no ROS, no files)."""
 from types import SimpleNamespace as NS
 

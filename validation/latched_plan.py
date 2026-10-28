@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 """ROS-free logic for the latched /plan republisher (validation/ci/latched_plan_node.py) and the SUT's
 transient-local /plan option. A bag replay delivers /plan once, so a SUT that starts late (or a subscriber that joins
 after the message) never sees it; a latched publisher keeps the newest non-empty plan for late joiners."""

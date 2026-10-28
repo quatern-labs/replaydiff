@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 """The replaydiff compare step (docs/design.md), validated by the experiment in validation/.
 
 Implements: per-topic message matching (nearest,

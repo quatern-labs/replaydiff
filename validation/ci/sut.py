@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: Apache-2.0
 """System under test for the replaydiff validation experiment (CI only, needs ROS 2).
 
 A small pure-pursuit controller fed by recorded /odom and /plan, publishing /sut/cmd_vel (Twist) and /sut/odom

@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 """SCAND (ROS 1 bag) -> ROS 2 MCAP for the validation experiment's real-robot recording. Pure Python with rosbags
 (Apache-2.0), no ROS install; the real bag is converted in CI only, the unit tests use a tiny synthetic ROS 1 bag.
 

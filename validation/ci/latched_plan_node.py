@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: Apache-2.0
 """Latched Path publisher (CI only, needs ROS 2): republishes the replayed /plan_in as a transient-local /plan, so a
 subscriber that joins after the bag played the plan still gets the newest one. Usage:
   latched_plan_node.py [--in /plan_in] [--out /plan]  (play the bag with --remap /plan:=/plan_in)"""

@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 """`replaydiff compare` end to end on a small synthetic MCAP fixture (no ROS install)."""
 import json
 
