@@ -30,4 +30,4 @@ replaydiff compare --base base0.mcap base1.mcap base2.mcap --head head.mcap --to
 ```
 
 Exit 0: same within tolerance. 1: regression. 2: can't tell (noisy base runs, too few base runs) or something failed.
-`--json` prints the report as JSON. Comparing needs no ROS install. Compared today: Twist, Odometry, Path.
+`--json` prints the report as JSON. Comparing needs no ROS install. Compared today: Twist, Odometry, Path, JointState.
