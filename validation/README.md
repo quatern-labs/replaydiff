@@ -45,8 +45,8 @@ replaydiff CLI.
    the RMS of the base-vs-base window biases); message-count check (head count differs by more than 10% from every
    base run -> FAIL); a missing topic FAILs and is never interpolated over, and base gaps wider than `max_gap`
    are left unmatched. Overall: any FAIL -> FAIL, else any INCONCLUSIVE -> INCONCLUSIVE, else PASS.
-   Path is compared (resampled by arc length, `match: sequence`); JointState is compared per joint name; not implemented: TF comparator, drift per metre,
-   time-shift estimation. `rel` tolerances are applied as `max(0, |d| - rel*|ref|) <= abs`.
+   Path is compared with `match: sequence`; JointState is compared per joint name; /tf is compared per listed parent/child pair (direct edges only);
+   not implemented: /tf_static as a set, drift per metre, time-shift estimation. `rel` tolerances are applied as `max(0, |d| - rel*|ref|) <= abs`.
 
 ## nav2 replay loop (replaces the pure-pursuit stand-in)
 
