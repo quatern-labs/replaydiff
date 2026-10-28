@@ -430,6 +430,8 @@ def main(argv=None) -> int:
     if args.json:
         with open(args.json, "w") as f:
             json.dump(report.to_dict(), f, indent=2)
+        if report.verdict == "FAIL":
+            print(f"See why: quatern explain {args.json}")
     return report.exit_code
 
 
