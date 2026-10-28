@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 """Turns replayed runs into the experiment's results: verdicts for base-vs-base and for each injected regression,
 catch / INCONCLUSIVE / false-FAIL rates, and the results/validation.{json,md} files. Pure Python, no ROS."""
 from __future__ import annotations

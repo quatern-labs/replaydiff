@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 """prepare-recording for the validation experiment's real-robot recording: verify a ROS 1 bag against its pinned
 sha256, convert it (scand.py), derive /scan from the point cloud, check the result and cache it by file id + sha256.
 

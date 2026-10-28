@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: Apache-2.0
 """Print topics, message counts, duration and sha256 of the recording in a rosbag2 directory (CI log)."""
 import glob
 import hashlib

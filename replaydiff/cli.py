@@ -1,7 +1,10 @@
+# SPDX-License-Identifier: Apache-2.0
 """`replaydiff` console script."""
 import sys
 
-USAGE = "usage: replaydiff compare --base <mcap>... --head <mcap> --tolerances <file.yaml> [--json [FILE]]"
+from . import __version__
+
+USAGE = "usage: replaydiff compare --base <mcap>... --head <mcap> --tolerances <file.yaml> [--json [FILE]]\n       replaydiff --version"
 
 
 def main(argv=None) -> int:
@@ -9,6 +12,9 @@ def main(argv=None) -> int:
     if argv and argv[0] == "compare":
         from .compare import main as compare_main
         return compare_main(argv[1:])
+    if argv and argv[0] == "--version":
+        print(f"replaydiff {__version__}")
+        return 0
     print(USAGE, file=sys.stderr)
     return 0 if argv and argv[0] in ("-h", "--help") else 2
 

@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: Apache-2.0
 """Two small ROS 2 nodes for the nav2 replay loop (CI only, needs ROS 2).
 
   tf     republishes the bag's /tf_in as /tf without the frames in --drop-children (regenerated live or by the

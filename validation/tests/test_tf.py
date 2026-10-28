@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 """/tf comparator: listed parent/child pairs, direct edges, translation and rotation angle (synthetic MCAP, no ROS)."""
 import json
 

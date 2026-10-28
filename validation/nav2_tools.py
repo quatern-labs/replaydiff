@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 """Pure-Python helpers for the nav2 replay loop (no ROS): parameter overlays, the TF filter rule, the map usability
 check and the map cache key. The ROS side (ci/nav2_replay_nodes.py, ci/nav2_replay.launch.py) calls these."""
 from __future__ import annotations

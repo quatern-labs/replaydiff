@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 """JointState comparator: per joint name, tolerance file, joint-set mismatch (synthetic MCAP, no ROS)."""
 import json
 

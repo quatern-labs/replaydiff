@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 """Launch nav2's controller_server (default Humble DWB), planner_server and map_server on a replayed recording, then
 the bag, then the recorded goals. Order is by launch events, not timers:
   nav2 nodes + tf relay start -> lifecycle_manager's /is_active wait (waiter) exits -> OnProcessExit starts the bag

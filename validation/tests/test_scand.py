@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 """SCAND conversion on a tiny synthetic ROS 1 bag written with rosbags (no download, no ROS)."""
 from pathlib import Path
 
