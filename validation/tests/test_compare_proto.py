@@ -153,3 +153,24 @@ def test_mcap_round_trip(tmp_path):
     s = r["/cmd_vel"]
     assert len(s.msgs) == 5 and s.t_log[1] == pytest.approx(1.1)
     assert s.msgs[2].linear.x == pytest.approx(0.2) and cp.twist_of(s.msgs[2]).angular.z == 0.5
+
+
+def _run_main(monkeypatch, capsys, tmp_path, head):
+    monkeypatch.setattr(cp, "load_config", lambda path: CONFIG)
+    runs = {"b0": make(), "b1": make(), "b2": make(), "head": head}
+    monkeypatch.setattr(cp, "read_mcap", lambda path, topics: runs[path])
+    out = tmp_path / "result.json"
+    code = cp.main(["--config", "c.yaml", "--base", "b0", "b1", "b2", "--head", "head", "--json", str(out)])
+    return code, capsys.readouterr().out, out
+
+
+def test_failing_compare_prints_see_why_once(monkeypatch, capsys, tmp_path):
+    code, text, out = _run_main(monkeypatch, capsys, tmp_path, make(offset=0.02))
+    assert code == 1
+    assert text.splitlines().count(f"See why: quatern explain {out}") == 1
+    assert text.count("See why:") == 1
+
+
+def test_passing_compare_prints_no_see_why(monkeypatch, capsys, tmp_path):
+    code, text, _ = _run_main(monkeypatch, capsys, tmp_path, make())
+    assert code == 0 and "See why" not in text
