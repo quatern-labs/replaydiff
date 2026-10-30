@@ -91,6 +91,18 @@ silently widen them.
   `replaydiff compare --tolerances validation/tolerances.yaml --base b0.mcap b1.mcap b2.mcap --head h.mcap`
   (exit 0 pass, 1 FAIL, 2 INCONCLUSIVE).
 
+## Real replay verdicts: pending
+
+No verdicts from real replay outputs are recorded yet; the replay MCAPs were not readable where this was prepared.
+Run once per real replay pair (each rate and repetition of the experiment, and each NUC SCAND replay; use
+`validation/tolerances_nav2.yaml` for nav2 pairs) and record command, exit code and verdict here:
+
+`replaydiff compare --tolerances validation/tolerances.yaml --base <base_rep1.mcap> <base_rep2.mcap> <base_rep3.mcap> --head <head.mcap> --json $OUT/verdict.json --markdown $OUT/report.md; echo "exit=$?"`
+
+| Pair | Command | Exit | Verdict |
+|---|---|---|---|
+| (pending) | | | |
+
 ## What would count as success
 
 Every injected regression is caught (FAIL) or honestly reported INCONCLUSIVE, none passes, and there are zero
