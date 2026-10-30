@@ -37,3 +37,7 @@ def test_every_action_input_is_in_doc():
     inputs = yaml.safe_load((ROOT / "action.yml").read_text())["inputs"]
     for name in inputs:
         assert f"`{name}`" in DOC, name
+
+
+def test_readme_links_usage_doc():
+    assert "](docs/usage.md)" in (ROOT / "README.md").read_text()
