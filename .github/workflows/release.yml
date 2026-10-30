@@ -1,0 +1,33 @@
+name: release
+
+# Builds the distribution for a version tag and keeps it as a workflow artifact. No publish step, no secrets:
+# publishing is a manual decision (docs/RELEASING.md).
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+      - name: Tag must match the package version
+        run: |
+          v=$(python -c "import re;print(re.search(r'__version__ = \"(.+?)\"', open('replaydiff/__init__.py').read()).group(1))")
+          test "v$v" = "$GITHUB_REF_NAME" || { echo "tag $GITHUB_REF_NAME != version v$v"; exit 1; }
+      - run: pip install build twine
+      - run: python -m build
+      - run: twine check dist/*
+      - run: tools/ci/smoke_wheel.sh dist
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dist
+          path: dist/
+          if-no-files-found: error
