@@ -111,7 +111,7 @@ The step result is the `replaydiff compare` exit code. The report goes to the jo
 |---|---|
 | `base` | Space-separated base-run MCAP paths (two or more). Required. |
 | `head` | Head-run MCAP path. Required. |
-| `tolerances` | Tolerance YAML file. |
+| `tolerances` | Tolerance YAML file. Required: the action fails at its first step with a clear message if this and `config` are both empty. |
 | `config` | Alias for `tolerances`. |
 | `inconclusive` | How exit code 2 counts: `fail` (default) or `pass`. |
 | `comment` | `true` posts or updates one pull request comment with the report; needs `pull-requests: write`. Default `false`. |
