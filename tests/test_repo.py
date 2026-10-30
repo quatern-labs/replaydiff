@@ -51,3 +51,12 @@ def test_tolerance_file_loads():
     from replaydiff import compare as compare_proto
     cfg = compare_proto.load_config(str(ROOT / "validation" / "tolerances.yaml"))
     assert set(cfg["topics"]) == {"/sut/cmd_vel", "/sut/odom"}
+
+
+def test_build_job_smoke_runs_the_wheel():
+    script = ROOT / "tools" / "ci" / "smoke_wheel.sh"
+    assert script.stat().st_mode & 0o111, "smoke_wheel.sh must be executable"
+    doc = load_unique((ROOT / ".github" / "workflows" / "test.yml").read_text())
+    runs = [s.get("run", "") for s in doc["jobs"]["build"]["steps"]]
+    for cmd in ("python -m build", "twine check dist/*", "tools/ci/smoke_wheel.sh dist"):
+        assert cmd in runs, cmd
