@@ -3,6 +3,8 @@ import glob
 from pathlib import Path
 
 import pytest
+
+pytest.importorskip("rosbags")
 from rosbags.rosbag2 import StoragePlugin, Writer
 from rosbags.typesys import Stores, get_typestore
 
