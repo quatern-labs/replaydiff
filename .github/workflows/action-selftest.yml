@@ -1,0 +1,51 @@
+name: action-selftest
+on:
+  pull_request:
+  push:
+    branches: [main]
+permissions:
+  contents: read
+jobs:
+  selftest:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Generate synthetic MCAPs (not committed)
+        run: |
+          pip install . pyyaml
+          mkdir -p "$RUNNER_TEMP/runs"
+          python - "$RUNNER_TEMP/runs" <<'PY'
+          import sys
+          sys.path.insert(0, "validation/tests")
+          from synth import CLI_TOLERANCES, write_mcap
+          d = sys.argv[1]
+          for i in range(3):
+              write_mcap(f"{d}/base{i}.mcap", seed=i)
+          write_mcap(f"{d}/same.mcap", seed=7)
+          write_mcap(f"{d}/gain30.mcap", seed=7, gain=1.3)
+          open(f"{d}/tol.yaml", "w").write(CLI_TOLERANCES)
+          PY
+      - name: PASS pair
+        id: pass
+        uses: ./
+        with:
+          base: ${{ runner.temp }}/runs/base0.mcap ${{ runner.temp }}/runs/base1.mcap ${{ runner.temp }}/runs/base2.mcap
+          head: ${{ runner.temp }}/runs/same.mcap
+          tolerances: ${{ runner.temp }}/runs/tol.yaml
+      - name: FAIL pair (expected to fail)
+        id: fail
+        continue-on-error: true
+        uses: ./
+        with:
+          base: ${{ runner.temp }}/runs/base0.mcap ${{ runner.temp }}/runs/base1.mcap ${{ runner.temp }}/runs/base2.mcap
+          head: ${{ runner.temp }}/runs/gain30.mcap
+          config: ${{ runner.temp }}/runs/tol.yaml
+      - name: Assert exit codes
+        run: |
+          test "${{ steps.pass.outputs.exit-code }}" = 0
+          test "${{ steps.fail.outputs.exit-code }}" = 1
+          test "${{ steps.fail.outcome }}" = failure
