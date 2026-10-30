@@ -7,6 +7,8 @@
 #    and waits, and a ros2 process that survives SIGTERM then blocks forever) and writes to a file, not a pipe;
 #  - the probe loop runs in its own process group, and this script only sleeps and polls it, so a stuck iteration
 #    cannot delay the deadline: at the deadline the group is SIGKILLed.
+#  - `timeout --foreground` keeps timeout and its child in that group (plain timeout makes its own group, so the
+#    deadline SIGKILL would orphan the ros2 child).
 # NAV2_WAIT_S (default 240) and NAV2_HEARTBEAT_S (default 30) are overridable for tests only.
 set -uo pipefail
 sim_pid="${1:?sim_pid}"
@@ -21,10 +23,10 @@ echo "starting" > "$tmp/pending"
 probe_loop() {
   while :; do
     echo "topic /odom" > "$tmp/pending"
-    timeout -k 5 15 ros2 topic list > "$tmp/topics" 2>/dev/null || true
+    timeout --foreground -k 5 15 ros2 topic list > "$tmp/topics" 2>/dev/null || true
     if grep -q '^/odom$' "$tmp/topics"; then
       echo "action navigate_to_pose" > "$tmp/pending"
-      timeout -k 5 15 ros2 action list > "$tmp/actions" 2>/dev/null || true
+      timeout --foreground -k 5 15 ros2 action list > "$tmp/actions" 2>/dev/null || true
       if grep -q navigate_to_pose "$tmp/actions"; then exit 0; fi
     fi
     if ! kill -0 "$sim_pid" 2>/dev/null; then echo "simulation process exited early" >&2; exit 2; fi
