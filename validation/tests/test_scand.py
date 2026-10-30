@@ -2,6 +2,8 @@
 from pathlib import Path
 
 import pytest
+
+pytest.importorskip("rosbags")
 from rosbags.convert.converter import default_message
 from rosbags.highlevel import AnyReader
 from rosbags.rosbag1 import Writer

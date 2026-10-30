@@ -39,13 +39,13 @@ replaydiff CLI.
    A FAIL below 0.9x from any other check is a false FAIL. The report has one row per regression, rate and N with the
    measured effect, PASS / FAIL / INCONCLUSIVE counts, which check fired (p95, bias, count, missing), the correct
    answer and the false-FAIL / miss / INCONCLUSIVE rates.
-7. **Compare.** `compare_proto.py` follows design.md: tolerance fixed, noise = worst base-vs-base p95 over all base
+7. **Compare.** `replaydiff/compare.py` follows design.md: tolerance fixed, noise = worst base-vs-base p95 over all base
    pairs; noise > 0.5 x tolerance -> INCONCLUSIVE; else FAIL if head p95 > tolerance against every base run (the
    reported value is the smallest); bias-window test (mean signed error per 2 s window must exceed `bias.abs` and 3x
    the RMS of the base-vs-base window biases); message-count check (head count differs by more than 10% from every
    base run -> FAIL); a missing topic FAILs and is never interpolated over, and base gaps wider than `max_gap`
    are left unmatched. Overall: any FAIL -> FAIL, else any INCONCLUSIVE -> INCONCLUSIVE, else PASS.
-   Not implemented in the prototype: Path/JointState/TF comparators, `sequence` matching, drift per metre,
+   Path is compared (resampled by arc length, `match: sequence`); not implemented: JointState/TF comparators, drift per metre,
    time-shift estimation. `rel` tolerances are applied as `max(0, |d| - rel*|ref|) <= abs`.
 
 ## nav2 replay loop (replaces the pure-pursuit stand-in)
@@ -59,7 +59,7 @@ for `/clock` to reach each goal's sim time; no timers). nav2's `/cmd_vel` is rem
 with `tolerances_nav2.yaml`. Regressions are overlays on nav2's own parameters (`nav2/overlays.yaml`: speed cap -20% /
 -50%, shorter DWB horizon, weaker path-align critic), applied by `nav2_tools.py overlay`. bt_navigator is not used: the
 goal sender calls `ComputePathToPose` and `FollowPath` directly. The controller's published path and odometry are not
-compared yet (no Path comparator in the prototype). Offline-tested: the overlay, TF rule, map check and cache key
+compared in this loop yet (the Path comparator exists in `replaydiff/compare.py`; the nav2 tolerances don't use it). Offline-tested: the overlay, TF rule, map check and cache key
 (`tests/test_nav2_tools.py`); the ROS side has not run yet (first CI run).
 
 ## Tolerances ([tolerances.yaml](tolerances.yaml)) and why
@@ -88,7 +88,7 @@ silently widen them.
   Artifacts: `validation-results` (`results/validation.json`, `results/validation.md`), per-job `result-*`
   files, short-lived `recording-<distro>`.
 - Compare two or more bags yourself:
-  `python validation/compare_proto.py --config validation/tolerances.yaml --base b0.mcap b1.mcap b2.mcap --head h.mcap`
+  `replaydiff compare --tolerances validation/tolerances.yaml --base b0.mcap b1.mcap b2.mcap --head h.mcap`
   (exit 0 pass, 1 FAIL, 2 INCONCLUSIVE).
 
 ## What would count as success
