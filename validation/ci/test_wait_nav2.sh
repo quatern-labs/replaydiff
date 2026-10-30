@@ -9,7 +9,7 @@ tmp="$(mktemp -d "${TMPDIR:-/tmp}/wait_nav2.XXXXXX")"
 sim=""
 trap '[ -n "$sim" ] && kill -KILL "$sim" 2>/dev/null; pkill -KILL -f "sleep 6137" 2>/dev/null; rm -rf "$tmp"' EXIT
 mkdir -p "$tmp/hang" "$tmp/ok"
-printf '#!/usr/bin/env bash\ntrap "" TERM\nsleep 6137\n' > "$tmp/hang/ros2"
+printf '#!/usr/bin/env bash\ntrap "" TERM\nexec sleep 6137\n' > "$tmp/hang/ros2"
 cat > "$tmp/ok/ros2" <<'STUB'
 #!/usr/bin/env bash
 case "$1" in
