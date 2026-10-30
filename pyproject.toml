@@ -4,6 +4,7 @@ version = "0.1.0.dev0"
 description = "Replay-based differential testing for ROS 2"
 requires-python = ">=3.10"
 license = { text = "Apache-2.0" }
+authors = [{ name = "The replaydiff Authors" }]
 dependencies = [
   "numpy",
   "mcap",
