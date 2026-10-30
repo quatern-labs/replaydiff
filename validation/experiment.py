@@ -10,7 +10,7 @@ import math
 import sys
 from collections import Counter, defaultdict
 
-import compare_proto as cp
+from replaydiff import compare as cp
 
 N_VALUES = (3, 5)
 N_BASE_RUNS = 6  # base0..base5: N=3 judges base3..base5 as "head", N=5 judges base5 (never a run that is in the base set)

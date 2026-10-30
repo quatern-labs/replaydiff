@@ -1,6 +1,6 @@
 [project]
-name = "replaydiff-validation"
-version = "0.0.0"
+name = "replaydiff"
+version = "0.1.0.dev0"
 description = "Replay-based differential testing for ROS 2"
 requires-python = ">=3.10"
 license = { text = "Apache-2.0" }
@@ -9,12 +9,22 @@ dependencies = [
   "mcap",
   "mcap-ros2-support",
   "PyYAML",
-  "rosbags",  # Apache-2.0: SCAND ROS 1 -> ROS 2 conversion (validation/scand.py)
 ]
+
+[project.scripts]
+replaydiff = "replaydiff.cli:main"
 
 [project.optional-dependencies]
 dev = ["pytest"]
+validation = ["rosbags"]  # Apache-2.0: SCAND ROS 1 -> ROS 2 conversion (validation/scand.py)
+
+[tool.setuptools]
+packages = ["replaydiff"]
+
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
 
 [tool.pytest.ini_options]
 testpaths = ["tests", "validation/tests"]
-pythonpath = ["validation"]
+pythonpath = [".", "validation"]
