@@ -4,7 +4,9 @@ Implements: per-topic message matching (nearest,
 interpolate), per-field errors for Twist/TwistStamped and Odometry, the p95 stat, the noise floor from N base
 runs, the INCONCLUSIVE / FAIL / PASS rule, the bias-window test and the message-count / rate check.
 Path is compared with `match: sequence` (i-th message with i-th).
-Not implemented: JointState, TF, `sequence` matching, drift per metre, time-shift estimation.
+JointState is compared by joint name (position/velocity/effort per joint, `joints:` and `ignore_fields:` in the
+config); a joint set that differs from every base run is a FAIL.
+Not implemented: TF, `sequence` matching, drift per metre, time-shift estimation.
 
 Messages are duck-typed (attribute access), so unit tests use plain SimpleNamespace objects and need no ROS.
 """
@@ -123,12 +125,50 @@ class Quantity:
     param: float = 0.0         # path: resample step, m
 
 
+JOINT_FIELDS = ("position", "velocity", "effort")
+
+
+def _joint_value(msg, name: str, fld: str) -> list:
+    """One joint's field looked up by name; NaN if the joint (or the field array) is absent from the message."""
+    names = list(msg.name)
+    vals = getattr(msg, fld)
+    return [float(vals[names.index(name)]) if name in names and len(vals) == len(names) else math.nan]
+
+
+def joint_quantities(topic_cfg: dict, sample_msg) -> list["Quantity"]:
+    joints = topic_cfg.get("joints", {})
+    ignore = set(topic_cfg.get("ignore_fields", []))
+    out = []
+    for name in sample_msg.name:
+        spec = {**joints.get("*", {}), **joints.get(name, {})}
+        for fld in JOINT_FIELDS:
+            if fld in spec and fld not in ignore:
+                tol = spec[fld]
+                abs_, rel = (tol["abs"], tol.get("rel", 0.0)) if isinstance(tol, dict) else (tol, 0.0)
+                out.append(Quantity(f"{name}.{fld}", lambda m, n=name, f=fld: _joint_value(m, n, f), abs_, rel))
+    return out
+
+
+def joint_set_problem(head: "Series", bases: list["Series"]) -> str | None:
+    """Joint-set mismatch (design.md): None if the head's joints equal those of at least one base run."""
+    hs = set(head.msgs[0].name)
+    problems = []
+    for b in bases:
+        bs = set(b.msgs[0].name)
+        if bs == hs:
+            return None
+        problems.append(f"missing {sorted(bs - hs)}, unexpected {sorted(hs - bs)}")
+    return "joint set differs from every base run: " + problems[0]
+
+
 def quantities_for(topic_cfg: dict, sample_msg) -> list[Quantity]:
     """Build the compared quantities of one topic from its config block."""
     out: list[Quantity] = []
     is_odom = hasattr(sample_msg, "pose") and hasattr(sample_msg.pose, "pose")
     bias = topic_cfg.get("bias")
-    if hasattr(sample_msg, "poses"):
+    if hasattr(sample_msg, "name") and hasattr(sample_msg, "position"):
+        out = joint_quantities(topic_cfg, sample_msg)
+    elif hasattr(sample_msg, "poses"):
         spec = topic_cfg.get("path", {})
         for key in ("mean_dist", "hausdorff", "endpoint"):
             if key in spec:
@@ -266,6 +306,7 @@ def pair_errors(ref: Series, cmp: Series, q: Quantity, cfg: dict, lo: float, hi:
         d = vb - pred
         err = np.maximum(np.linalg.norm(d, axis=1) - q.rel * np.linalg.norm(pred, axis=1), 0.0)
         signed = d[:, 0] if d.shape[1] == 1 else None
+    valid = valid & ~np.isnan(err)  # e.g. a joint absent from a message
     return Errors(tb_w[valid], err[valid], signed[valid] if signed is not None else None, n_w, int((~valid).sum()))
 
 
@@ -383,6 +424,11 @@ def evaluate(base_runs: list[Run], head: Run, config: dict) -> Report:
             results.append(QResult(topic, "*", "INCONCLUSIVE", None, None, None,
                                    ["topic missing from at least one base run: replay is broken"]))
             continue
+
+        if hasattr(sample_src.msgs[0], "name") and hasattr(sample_src.msgs[0], "position"):
+            problem = joint_set_problem(head_series, base_series)
+            if problem:
+                results.append(QResult(topic, "joint_set", "FAIL", None, None, None, [problem]))
 
         def count(s: Series) -> int:
             t = s.times(cfg["stamp"])
