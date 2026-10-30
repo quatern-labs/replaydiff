@@ -4,14 +4,19 @@ from pathlib import Path
 
 import pytest
 
-pytest.importorskip("rosbags")
-from rosbags.rosbag2 import StoragePlugin, Writer
-from rosbags.typesys import Stores, get_typestore
-
-import compare_proto
+from replaydiff import compare as compare_proto
 import perturb_bag
 
-TS = get_typestore(Stores.ROS2_HUMBLE)
+try:
+    from rosbags.rosbag2 import StoragePlugin, Writer
+    from rosbags.typesys import Stores, get_typestore
+
+    TS = get_typestore(Stores.ROS2_HUMBLE)
+except ImportError:  # the optional `validation` extra is not installed
+    TS = None
+
+# Skip per test rather than per module, so a run without the extra exits 0 (a module-level skip collects nothing: exit 5).
+pytestmark = pytest.mark.skipif(TS is None, reason="could not import 'rosbags' (optional `validation` extra)")
 TWIST = "geometry_msgs/msg/Twist"
 T0 = 1_000 * 10**9
 CONFIG = """
