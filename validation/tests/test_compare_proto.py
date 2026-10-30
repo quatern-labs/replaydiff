@@ -2,7 +2,7 @@ import math
 import numpy as np
 import pytest
 
-import compare_proto as cp
+from replaydiff import compare as cp
 from synth import CONFIG, TIMES, cmd_series, odom_series, run
 
 
