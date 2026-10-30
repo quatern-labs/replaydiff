@@ -8,7 +8,7 @@ replaydiff runs a recording through your stack at two git refs, records the outp
 against a per-topic tolerance file, and exits 0 (same behavior within tolerance), 1 (regression) or 2 (can't tell:
 the replay is too noisy for the tolerance you set, or something failed). It is built to run in CI on pull requests.
 
-**Status: early development.** `replaydiff compare` works on recordings you already have (Twist, Odometry, Path); the replay step, the JointState and `/tf` comparators and the GitHub Action are still planned. The design is in [docs/design.md](docs/design.md).
+**Status: early development.** `replaydiff compare` works on recordings you already have (Twist, Odometry, Path, JointState); the replay step, the `/tf` comparators and the GitHub Action are still planned. The design is in [docs/design.md](docs/design.md).
 
 Planned for the first release:
 - Comparators for `geometry_msgs/Twist`, `nav_msgs/Odometry`, `nav_msgs/Path`, `sensor_msgs/JointState` and `/tf`.
