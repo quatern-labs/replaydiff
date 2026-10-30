@@ -1,0 +1,70 @@
+name: replaydiff
+description: Compare a head replay against base replays with per-topic tolerances; the step result is the compare exit code.
+inputs:
+  base:
+    description: Space-separated base-run MCAP paths (two or more; they set the noise floor).
+    required: true
+  head:
+    description: Head-run MCAP path.
+    required: true
+  tolerances:
+    description: Tolerance YAML file.
+    required: false
+  config:
+    description: Alias for `tolerances`.
+    required: false
+  inconclusive:
+    description: "How exit code 2 (inconclusive or error) counts: `fail` (default) or `pass`."
+    default: fail
+  comment:
+    description: "Post or update one PR comment with the report (needs pull-requests: write)."
+    default: "false"
+  python-version:
+    description: Python version for the CLI.
+    default: "3.11"
+outputs:
+  exit-code:
+    description: Exit code of `replaydiff compare` (0 pass, 1 FAIL, 2 inconclusive or error).
+    value: ${{ steps.compare.outputs.exit-code }}
+runs:
+  using: composite
+  steps:
+    - uses: actions/setup-python@v5
+      with:
+        python-version: ${{ inputs.python-version }}
+    - name: Install replaydiff
+      shell: bash
+      run: python -m pip install "${{ github.action_path }}"
+    - name: Compare
+      id: compare
+      shell: bash
+      env:
+        RD_BASE: ${{ inputs.base }}
+        RD_HEAD: ${{ inputs.head }}
+        RD_TOLERANCES: ${{ inputs.tolerances || inputs.config }}
+      run: |
+        set +e
+        out="${RUNNER_TEMP}/replaydiff-report.md"
+        # shellcheck disable=SC2086  # RD_BASE is a space-separated list
+        replaydiff compare --base $RD_BASE --head "$RD_HEAD" --tolerances "$RD_TOLERANCES" \
+          --json "${RUNNER_TEMP}/replaydiff-report.json" > "${RUNNER_TEMP}/replaydiff-report.txt"
+        code=$?
+        { echo '```'; cat "${RUNNER_TEMP}/replaydiff-report.txt"; echo '```'; } > "$out"
+        cat "$out"
+        cat "$out" >> "$GITHUB_STEP_SUMMARY"
+        echo "exit-code=$code" >> "$GITHUB_OUTPUT"
+        echo "report=$out" >> "$GITHUB_OUTPUT"
+    - name: Post PR comment
+      if: inputs.comment == 'true' && github.event_name == 'pull_request'
+      uses: marocchino/sticky-pull-request-comment@v2
+      with:
+        header: replaydiff
+        path: ${{ steps.compare.outputs.report }}
+    - name: Exit with the compare exit code
+      shell: bash
+      env:
+        CODE: ${{ steps.compare.outputs.exit-code }}
+        INCONCLUSIVE: ${{ inputs.inconclusive }}
+      run: |
+        if [ "$CODE" = 2 ] && [ "$INCONCLUSIVE" = pass ]; then exit 0; fi
+        exit "$CODE"
