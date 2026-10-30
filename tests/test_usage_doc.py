@@ -41,3 +41,34 @@ def test_every_action_input_is_in_doc():
 
 def test_readme_links_usage_doc():
     assert "](docs/usage.md)" in (ROOT / "README.md").read_text()
+
+
+def _require_step():
+    steps = yaml.safe_load((ROOT / "action.yml").read_text())["runs"]["steps"]
+    return next(s for s in steps if s.get("id") == "require-tolerances")
+
+
+def _run_require(value: str):
+    import subprocess
+
+    return subprocess.run(
+        ["bash", "-c", _require_step()["run"]],
+        env={"RD_TOLERANCES": value, "PATH": "/usr/bin:/bin"},
+        capture_output=True, text=True,
+    )
+
+
+def test_action_fails_clearly_without_tolerances():
+    r = _run_require("")
+    assert r.returncode == 2
+    assert "missing required input 'tolerances'" in r.stdout
+
+
+def test_action_accepts_tolerances():
+    assert _run_require("replaydiff.yaml").returncode == 0
+
+
+def test_require_step_runs_first_and_reads_both_inputs():
+    step = _require_step()
+    assert yaml.safe_load((ROOT / "action.yml").read_text())["runs"]["steps"][0]["id"] == step["id"]
+    assert step["env"]["RD_TOLERANCES"] == "${{ inputs.tolerances || inputs.config }}"

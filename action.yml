@@ -8,7 +8,7 @@ inputs:
     description: Head-run MCAP path.
     required: true
   tolerances:
-    description: Tolerance YAML file.
+    description: Tolerance YAML file. Required (set `tolerances` or its alias `config`); the action fails with a clear message without it.
     required: false
   config:
     description: Alias for `tolerances`.
@@ -29,6 +29,16 @@ outputs:
 runs:
   using: composite
   steps:
+    - name: Require tolerances
+      id: require-tolerances
+      shell: bash
+      env:
+        RD_TOLERANCES: ${{ inputs.tolerances || inputs.config }}
+      run: |
+        if [ -z "$RD_TOLERANCES" ]; then
+          echo "::error title=replaydiff::missing required input 'tolerances' (or its alias 'config'): set it to your tolerance YAML file, e.g. tolerances: replaydiff.yaml"
+          exit 2
+        fi
     - uses: actions/setup-python@v5
       with:
         python-version: ${{ inputs.python-version }}
