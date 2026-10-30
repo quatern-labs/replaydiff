@@ -6,7 +6,7 @@ import pytest
 from rosbags.rosbag2 import StoragePlugin, Writer
 from rosbags.typesys import Stores, get_typestore
 
-import compare_proto
+from replaydiff import compare as compare_proto
 import perturb_bag
 
 TS = get_typestore(Stores.ROS2_HUMBLE)
