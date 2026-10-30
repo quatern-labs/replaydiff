@@ -16,3 +16,16 @@ jobs:
           python-version: "3.10"
       - run: pip install -e ".[dev,validation]"
       - run: make test
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+      - run: pip install build twine
+      - run: python -m build
+      - run: twine check dist/*
+      - name: Install the wheel in a fresh venv and smoke-run the CLI
+        run: tools/ci/smoke_wheel.sh dist

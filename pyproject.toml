@@ -15,7 +15,7 @@ dependencies = [
 replaydiff = "replaydiff.cli:main"
 
 [project.optional-dependencies]
-dev = ["pytest"]
+dev = ["pytest", "build", "twine"]  # build: Apache-2.0 or MIT (pypa/build, MIT); twine: Apache-2.0 (CI build job only)
 validation = ["rosbags"]  # Apache-2.0: SCAND ROS 1 -> ROS 2 conversion (validation/scand.py)
 
 [tool.setuptools]
