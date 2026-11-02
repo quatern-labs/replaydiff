@@ -32,7 +32,8 @@ echo "$out"
 echo "$out" | grep -q '^ERROR: nav2 did not come up' || fail "hang case: no ERROR line"
 echo "$out" | grep -q 'still waiting for nav2' || fail "hang case: no heartbeat line"
 echo "$out" | grep -q 'sim log line' || fail "hang case: no sim.log tail"
-sleep 1
+# the killed stub may take a moment to exit on a slow runner: poll up to 10 s, still fail if it survives
+for _ in $(seq 50); do pgrep -f "sleep 6137" >/dev/null || break; sleep 0.2; done
 ! pgrep -f "sleep 6137" >/dev/null || fail "hang case: stub ros2 still running"
 echo "hang case ok (${took} s)"
 
