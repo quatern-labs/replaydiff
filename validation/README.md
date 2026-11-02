@@ -94,7 +94,7 @@ silently widen them.
 ## Real replay verdicts: pending
 
 No verdicts from real replay outputs are recorded yet; the replay MCAPs were not readable where this was prepared.
-Run once per real replay pair (each rate and repetition of the experiment, and each NUC SCAND replay; use
+Run once per real replay pair (each rate and repetition of the experiment, and each local SCAND replay; use
 `validation/tolerances_nav2.yaml` for nav2 pairs) and record command, exit code and verdict here:
 
 `replaydiff compare --tolerances validation/tolerances.yaml --base <base_rep1.mcap> <base_rep2.mcap> <base_rep3.mcap> --head <head.mcap> --json $OUT/verdict.json --markdown $OUT/report.md; echo "exit=$?"`
