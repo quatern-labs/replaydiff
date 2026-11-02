@@ -10,6 +10,36 @@ the replay is too noisy for the tolerance you set, or something failed). It is b
 
 **Status: early development.** `replaydiff compare` works on recordings you already have (Twist, Odometry, Path); the replay step, the JointState and `/tf` comparators and the GitHub Action are still planned. The design is in [docs/design.md](docs/design.md).
 
+## Install
+
+Not on PyPI yet. Install from a clone of this repo (Python 3.10 or newer; no ROS install needed to compare):
+
+```console
+$ git clone https://github.com/quatern-labs/replaydiff.git
+$ cd replaydiff
+$ pip install .
+```
+
+## Try it
+
+This writes three base runs, two heads and a tolerance file as small MCAPs (about 70 KB) and compares them. The
+base runs are the base version replayed three times; the first head behaves the same, the second has `/odom` 5 cm off.
+
+```console
+$ python examples/make_demo.py demo
+$ replaydiff compare --base demo/base0.mcap demo/base1.mcap demo/base2.mcap --head demo/head_same.mcap --tolerances demo/tolerances.yaml  # exit 0
+$ replaydiff compare --base demo/base0.mcap demo/base1.mcap demo/base2.mcap --head demo/head_regressed.mcap --tolerances demo/tolerances.yaml  # exit 1
+```
+
+The second command prints one line per topic and quantity and ends with `VERDICT FAIL`:
+
+```
+FAIL          /odom                pose.translation     0.0002988   0.05019      0.01  head p95 0.05019 > tolerance 0.01 vs every base run
+```
+
+Exit 0: same within tolerance. 1: regression. 2: can't tell (noisy base runs, too few base runs) or something
+failed. `--json` prints the report as JSON. Compared today: Twist, Odometry, Path.
+
 Planned for the first release:
 - Comparators for `geometry_msgs/Twist`, `nav_msgs/Odometry`, `nav_msgs/Path`, `sensor_msgs/JointState` and `/tf`.
 - A YAML tolerance file with absolute/relative limits, matching modes and warmup windows.
@@ -34,13 +64,3 @@ CI runs `make test` on every pull request and every push to main.
 
 ## License
 Apache License 2.0. See [LICENSE](LICENSE).
-
-## Usage
-
-```
-pip install .
-replaydiff compare --base base0.mcap base1.mcap base2.mcap --head head.mcap --tolerances tolerances.yaml
-```
-
-Exit 0: same within tolerance. 1: regression. 2: can't tell (noisy base runs, too few base runs) or something failed.
-`--json` prints the report as JSON. Comparing needs no ROS install. Compared today: Twist, Odometry, Path.
