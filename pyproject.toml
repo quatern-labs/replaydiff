@@ -5,6 +5,7 @@ description = "Replay-based differential testing for ROS 2"
 readme = "README.md"
 requires-python = ">=3.10"
 license = { text = "Apache-2.0" }
+authors = [{ name = "The replaydiff Authors" }]
 dependencies = [
   "numpy",
   "mcap",
