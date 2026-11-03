@@ -11,3 +11,6 @@ test_results/
 runs/
 results/
 .pytest_cache/
+docs/handoffs/
+docs/HANDOFF.md
+.handoffs/
