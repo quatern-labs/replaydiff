@@ -6,7 +6,8 @@ runs, the INCONCLUSIVE / FAIL / PASS rule, the bias-window test and the message-
 Path is compared with `match: sequence` (i-th message with i-th).
 JointState is compared by joint name (position/velocity/effort per joint, `joints:` and `ignore_fields:` in the
 config); a joint set that differs from every base run is a FAIL.
-Not implemented: TF, `sequence` matching, drift per metre, time-shift estimation.
+/tf is compared per listed parent/child pair (direct edges only; translation, rotation angle).
+Not implemented: /tf_static as a set, `sequence` matching, drift per metre, time-shift estimation.
 
 Messages are duck-typed (attribute access), so unit tests use plain SimpleNamespace objects and need no ROS.
 """
@@ -17,6 +18,7 @@ import itertools
 import json
 import math
 import sys
+from types import SimpleNamespace
 from dataclasses import dataclass, field
 from typing import Callable
 
@@ -494,6 +496,31 @@ def evaluate(base_runs: list[Run], head: Run, config: dict) -> Report:
 
 # --------------------------------------------------------------------------- CLI
 
+def expand_tf(runs: list[Run], config: dict) -> tuple[list[Run], dict]:
+    """Turn a topic with `pairs` (TFMessage) into one pseudo-topic `"<topic> <parent>-><child>"` per pair, holding
+    one pose message (header + pose.pose) per TFMessage that contains the edge. Only direct edges are compared;
+    the pseudo-topic then goes through the Odometry `pose` comparison (translation, rotation angle)."""
+    topics, runs = {}, [dict(r) for r in runs]
+    for topic, tcfg in config["topics"].items():
+        if "pairs" not in tcfg:
+            topics[topic] = tcfg
+            continue
+        for pair in tcfg["pairs"]:
+            name = f"{topic} {pair['parent']}->{pair['child']}"
+            topics[name] = {**{k: v for k, v in tcfg.items() if k != "pairs"},
+                            "pose": {k: pair[k] for k in ("translation", "rotation_deg") if k in pair}}
+            for run in runs:
+                items = []
+                for t, m in zip(run[topic].t_log, run[topic].msgs) if topic in run else ():
+                    for tr in m.transforms:
+                        if tr.header.frame_id == pair["parent"] and tr.child_frame_id == pair["child"]:
+                            pose = SimpleNamespace(position=tr.transform.translation, orientation=tr.transform.rotation)
+                            items.append((t, SimpleNamespace(header=tr.header, pose=SimpleNamespace(pose=pose))))
+                if items:
+                    run[name] = make_series(items)
+    return runs, {**config, "topics": topics}
+
+
 def load_config(path: str) -> dict:
     import yaml
     with open(path) as f:
@@ -524,7 +551,8 @@ def main(argv=None) -> int:
     try:
         cfg = load_config(args.tolerances)
         topics = list(cfg["topics"])
-        report = evaluate([read_mcap(p, topics) for p in args.base], read_mcap(args.head, topics), cfg)
+        runs, cfg = expand_tf([read_mcap(p, topics) for p in [*args.base, args.head]], cfg)
+        report = evaluate(runs[:-1], runs[-1], cfg)
     except Exception as e:  # unreadable file, bad config: "something failed", not a verdict
         print(f"replaydiff: error: {type(e).__name__}: {e}", file=sys.stderr)
         return 2
