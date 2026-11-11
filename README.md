@@ -38,7 +38,7 @@ FAIL          /odom                pose.translation     0.0002988   0.05019     
 ```
 
 Exit 0: same within tolerance. 1: regression. 2: can't tell (noisy base runs, too few base runs) or something
-failed. `--json` prints the report as JSON. Compared today: Twist, Odometry, Path, JointState, and `/tf` for the parent/child pairs you list.
+failed. `--json` prints the report as JSON. `--junit FILE` writes JUnit XML (one testcase per topic quantity), `--export-mcap FILE` writes head-minus-base error topics (`/replaydiff/error/...`) for Foxglove, and `--plots DIR` writes error PNGs (needs `pip install replaydiff[plots]`). Compared today: Twist, Odometry, Path, JointState, and `/tf` for the parent/child pairs you list.
 
 Planned for the first release:
 - Comparators for `geometry_msgs/Twist`, `nav_msgs/Odometry`, `nav_msgs/Path`, `sensor_msgs/JointState` and `/tf`.

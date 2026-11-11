@@ -392,7 +392,7 @@ def _nan_to_none(x):
     return None if x is None or (isinstance(x, float) and math.isnan(x)) else x
 
 
-def evaluate(base_runs: list[Run], head: Run, config: dict) -> Report:
+def evaluate(base_runs: list[Run], head: Run, config: dict, errors: dict | None = None) -> Report:
     """Verdict of `head` against N >= 2 base runs under the design.md rule. The tolerance is fixed; noise only
     decides whether a verdict is possible."""
     defaults = {**DEFAULTS, **config.get("defaults", {})}
@@ -459,6 +459,8 @@ def evaluate(base_runs: list[Run], head: Run, config: dict) -> Report:
             head_stats, bias_max, unmatched = [], [], []
             for s in base_series:
                 e = pair_errors(s, head_series, q, cfg, lo, hi)
+                if errors is not None and (topic, q.name) not in errors:
+                    errors[(topic, q.name)] = e  # head vs the first base run, for --plots / --export-mcap
                 head_stats.append(stat_of(e.err, cfg["stat"]))
                 unmatched.append(e.n_unmatched)
                 if q.bias:
@@ -547,12 +549,24 @@ def main(argv=None) -> int:
     ap.add_argument("--head", required=True, help="head-run MCAP")
     ap.add_argument("--tolerances", "--config", dest="tolerances", required=True, help="YAML tolerance file")
     ap.add_argument("--json", nargs="?", const="-", help="write the JSON report to this file (stdout if no value)")
+    ap.add_argument("--junit", help="write a JUnit XML report (one testcase per topic quantity) to this file")
+    ap.add_argument("--plots", metavar="DIR", help="write head-minus-base error PNGs to this directory (needs matplotlib)")
+    ap.add_argument("--export-mcap", metavar="FILE", help="write head-minus-base error topics to this MCAP (Foxglove)")
     args = ap.parse_args(argv)
     try:
         cfg = load_config(args.tolerances)
         topics = list(cfg["topics"])
         runs, cfg = expand_tf([read_mcap(p, topics) for p in [*args.base, args.head]], cfg)
-        report = evaluate(runs[:-1], runs[-1], cfg)
+        errors: dict = {}
+        report = evaluate(runs[:-1], runs[-1], cfg, errors)
+        from replaydiff import formats
+        if args.junit:
+            with open(args.junit, "wb") as f:
+                f.write(formats.junit_xml(report))
+        if args.plots:
+            formats.write_plots(report, errors, args.plots)
+        if args.export_mcap:
+            formats.export_mcap(report, errors, args.export_mcap)
     except Exception as e:  # unreadable file, bad config: "something failed", not a verdict
         print(f"replaydiff: error: {type(e).__name__}: {e}", file=sys.stderr)
         return 2

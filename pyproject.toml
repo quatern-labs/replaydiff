@@ -17,6 +17,7 @@ replaydiff = "replaydiff.cli:main"
 
 [project.optional-dependencies]
 dev = ["pytest"]
+plots = ["matplotlib"]  # matplotlib license (BSD-compatible): compare --plots
 validation = ["rosbags"]  # Apache-2.0: SCAND ROS 1 -> ROS 2 conversion (validation/scand.py)
 
 [tool.setuptools]
