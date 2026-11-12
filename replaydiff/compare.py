@@ -547,6 +547,9 @@ def main(argv=None) -> int:
     ap.add_argument("--head", required=True, help="head-run MCAP")
     ap.add_argument("--tolerances", "--config", dest="tolerances", required=True, help="YAML tolerance file")
     ap.add_argument("--json", nargs="?", const="-", help="write the JSON report to this file (stdout if no value)")
+    ap.add_argument("--markdown", metavar="FILE", help="also write the report as Markdown (for a PR comment) to FILE")
+    ap.add_argument("--inconclusive", choices=("fail", "pass"), default="fail",
+                    help="how an INCONCLUSIVE verdict exits: fail = 2 (default), pass = 0. Errors still exit 2.")
     args = ap.parse_args(argv)
     try:
         cfg = load_config(args.tolerances)
@@ -556,6 +559,9 @@ def main(argv=None) -> int:
     except Exception as e:  # unreadable file, bad config: "something failed", not a verdict
         print(f"replaydiff: error: {type(e).__name__}: {e}", file=sys.stderr)
         return 2
+    if args.markdown:
+        with open(args.markdown, "w") as f:
+            f.write(f"### replaydiff: {report.verdict}\n\n```\n{format_report(report)}\n```\n")
     if args.json == "-":
         print(json.dumps(report.to_dict(), indent=2))
     else:
@@ -565,6 +571,8 @@ def main(argv=None) -> int:
                 json.dump(report.to_dict(), f, indent=2)
             if report.verdict == "FAIL":
                 print(f"See why: quatern explain {args.json}")
+    if report.verdict == "INCONCLUSIVE" and args.inconclusive == "pass":
+        return 0
     return report.exit_code
 
 

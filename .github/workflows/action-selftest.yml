@@ -1,0 +1,40 @@
+name: action-selftest
+on:
+  pull_request:
+  push:
+    branches: [main]
+permissions:
+  contents: read
+jobs:
+  selftest:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Generate synthetic MCAPs (not committed)
+        run: |
+          pip install .
+          python examples/make_demo.py "$RUNNER_TEMP/runs"
+      - name: PASS pair
+        id: pass
+        uses: ./
+        with:
+          base: ${{ runner.temp }}/runs/base0.mcap ${{ runner.temp }}/runs/base1.mcap ${{ runner.temp }}/runs/base2.mcap
+          head: ${{ runner.temp }}/runs/head_same.mcap
+          tolerances: ${{ runner.temp }}/runs/tolerances.yaml
+      - name: FAIL pair (expected to fail)
+        id: fail
+        continue-on-error: true
+        uses: ./
+        with:
+          base: ${{ runner.temp }}/runs/base0.mcap ${{ runner.temp }}/runs/base1.mcap ${{ runner.temp }}/runs/base2.mcap
+          head: ${{ runner.temp }}/runs/head_regressed.mcap
+          tolerances: ${{ runner.temp }}/runs/tolerances.yaml
+      - name: Assert exit codes
+        run: |
+          test "${{ steps.pass.outputs.exit-code }}" = 0
+          test "${{ steps.fail.outputs.exit-code }}" = 1
+          test "${{ steps.fail.outcome }}" = failure
