@@ -559,6 +559,14 @@ def main(argv=None) -> int:
     except Exception as e:  # unreadable file, bad config: "something failed", not a verdict
         print(f"replaydiff: error: {type(e).__name__}: {e}", file=sys.stderr)
         return 2
+    try:
+        return _emit(args, report)
+    except Exception as e:  # e.g. an unwritable --markdown or --json path: error (2), never "differences found" (1)
+        print(f"replaydiff: error: {type(e).__name__}: {e}", file=sys.stderr)
+        return 2
+
+
+def _emit(args, report) -> int:
     if args.markdown:
         with open(args.markdown, "w") as f:
             f.write(f"### replaydiff: {report.verdict}\n\n```\n{format_report(report)}\n```\n")
