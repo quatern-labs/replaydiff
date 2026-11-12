@@ -99,7 +99,7 @@ def _xyz(x=0.0, y=0.0, z=0.0):
     return {"x": x, "y": y, "z": z}
 
 
-def write_mcap(path, *, gain=1.0, offset=0.0, path_shift=0.0, joint_shift=0.0, joints=("a", "b"), seed=0, jitter=1e-4, times=TIMES[:400:4],
+def write_mcap(path, *, gain=1.0, offset=0.0, path_shift=0.0, path_end_shift=0.0, path_extra=0, joint_shift=0.0, joints=("a", "b"), seed=0, jitter=1e-4, times=TIMES[:400:4],
                 tf=False, tf_offset=0.0, tf_yaw_deg=0.0):
     """Write /cmd_vel (Twist), /odom (Odometry) and /plan (Path) and /joint_states (JointState) and, if `tf`, /tf (odom->base_link, base_link->laser) to an MCAP. One call = one replay run: the
     seed gives each base run its own small noise; `gain`, `offset` and `path_shift`, `joint_shift` (joint b), `tf_offset` (m), `tf_yaw_deg` inject regressions."""
@@ -119,8 +119,8 @@ def write_mcap(path, *, gain=1.0, offset=0.0, path_shift=0.0, joint_shift=0.0, j
             w.write_message("/odom", sch["nav_msgs/msg/Odometry"], {
                 "header": hdr, "pose": {"pose": {"position": _xyz(x), "orientation": {"x": 0, "y": 0, "z": 0, "w": 1}}},
                 "twist": {"twist": {"linear": _xyz(0.2), "angular": _xyz()}}}, log_time=ns, publish_time=ns)
-            poses = [{"header": hdr, "pose": {"position": _xyz(0.5 * k, path_shift), "orientation": {
-                "x": 0, "y": 0, "z": 0, "w": 1}}} for k in range(5)]
+            poses = [{"header": hdr, "pose": {"position": _xyz(0.5 * k, path_shift + (path_end_shift if k == 4 + path_extra else 0.0)), "orientation": {
+                "x": 0, "y": 0, "z": 0, "w": 1}}} for k in range(5 + path_extra)]
             order = list(joints)[::-1] if seed % 2 else list(joints)  # joint order must not matter
             pos = {"a": 0.1 * t, "b": math.sin(t) + joint_shift}
             w.write_message("/joint_states", sch["sensor_msgs/msg/JointState"], {
@@ -151,7 +151,7 @@ topics:
     pose: {translation: 0.01}
   /plan:
     match: sequence
-    path: {mean_dist: 0.05, hausdorff: 0.20, endpoint: 0.05, resample: 0.05}
+    path: {mean_dist: 0.05, hausdorff: 0.20, endpoint: 0.05, pose_count: 0, resample: 0.05}
   /joint_states:
     match: interpolate
     joints: {"*": {position: 0.01, velocity: 0.05, effort: 1.0}, b: {position: 0.02}}
