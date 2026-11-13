@@ -18,7 +18,7 @@ def stubbed(monkeypatch):
     monkeypatch.setattr(compare, "load_config", lambda p: {"topics": {}})
     monkeypatch.setattr(compare, "read_mcap", lambda p, t=None: None)
     monkeypatch.setattr(compare, "expand_tf", lambda runs, cfg: ([1, 2, 3], cfg))
-    monkeypatch.setattr(compare, "evaluate", lambda b, h, c: report)
+    monkeypatch.setattr(compare, "evaluate", lambda b, h, c, e=None: report)
     monkeypatch.setattr(compare, "format_report", lambda r: "report")
 
 
