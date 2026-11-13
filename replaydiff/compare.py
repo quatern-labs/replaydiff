@@ -172,7 +172,7 @@ def quantities_for(topic_cfg: dict, sample_msg) -> list[Quantity]:
         out = joint_quantities(topic_cfg, sample_msg)
     elif hasattr(sample_msg, "poses"):
         spec = topic_cfg.get("path", {})
-        for key in ("mean_dist", "hausdorff", "endpoint"):
+        for key in ("mean_dist", "hausdorff", "endpoint", "pose_count"):
             if key in spec:
                 out.append(Quantity(f"path.{key}", None, spec[key], kind="path", param=spec.get("resample", 0.05)))
     elif is_odom:
@@ -244,15 +244,17 @@ def _resampled_xy(path_msg, step: float) -> np.ndarray:
 
 
 def path_metrics(a, b, step: float) -> dict:
-    """mean point distance (index-wise on the resampled paths), Hausdorff and endpoint distance, in m."""
+    """mean point distance (index-wise on the resampled paths), Hausdorff and endpoint distance, in m;
+    pose_count is the absolute difference in the number of poses of the original paths."""
+    count = float(abs(len(a.poses) - len(b.poses)))
     pa, pb = _resampled_xy(a, step), _resampled_xy(b, step)
     if len(pa) == 0 or len(pb) == 0:
-        return {"mean_dist": math.inf, "hausdorff": math.inf, "endpoint": math.inf}
+        return {"mean_dist": math.inf, "hausdorff": math.inf, "endpoint": math.inf, "pose_count": count}
     n = min(len(pa), len(pb))
     d = np.linalg.norm(pa[:, None] - pb[None], axis=2)
     return {"mean_dist": float(np.linalg.norm(pa[:n] - pb[:n], axis=1).mean()),
             "hausdorff": float(max(d.min(axis=1).max(), d.min(axis=0).max())),
-            "endpoint": float(np.linalg.norm(pa[-1] - pb[-1]))}
+            "endpoint": float(np.linalg.norm(pa[-1] - pb[-1])), "pose_count": count}
 
 
 def _path_errors(ref: Series, cmp: Series, q: Quantity, cfg: dict, lo: float, hi: float) -> Errors:

@@ -83,7 +83,7 @@ topics:
   /plan:
     type: nav_msgs/msg/Path
     match: sequence
-    path: {mean_dist: 0.05, hausdorff: 0.20, endpoint: 0.05, resample: 0.05}
+    path: {mean_dist: 0.05, hausdorff: 0.20, endpoint: 0.05, pose_count: 0, resample: 0.05}
   /joint_states:
     type: sensor_msgs/msg/JointState
     match: interpolate
