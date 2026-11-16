@@ -17,6 +17,9 @@ jobs:
       - run: pip install -e ".[dev,validation]"
       - name: rosbags extra is installed
         run: python -c "import rosbags"
+      - run: pip install -e ".[plots]"
+      - name: plots extra is installed (the PNG test must run, not skip)
+        run: python -c "import matplotlib"
       - name: make test (a rosbags skip fails the job)
         run: make test
         env:
