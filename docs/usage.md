@@ -26,6 +26,11 @@ replaydiff compare --base base0.mcap base1.mcap base2.mcap --head head.mcap --to
 | `--tolerances` | The tolerance YAML file. Required. |
 | `--config` | Alias for `--tolerances`. |
 | `--json` | Print the report as JSON on stdout. With a file name, write the JSON there and print the table. |
+| `--markdown` | Also write the report as Markdown (for a PR comment) to this file. |
+| `--inconclusive` | How an INCONCLUSIVE verdict exits: `fail` (exit 2, default) or `pass` (exit 0). Errors still exit 2. |
+| `--junit` | Write a JUnit XML report (one testcase per topic quantity) to this file. |
+| `--plots` | Write head-minus-base error PNGs to this directory (needs matplotlib). |
+| `--export-mcap` | Write head-minus-base error topics to this MCAP file (for Foxglove). |
 
 With fewer than two base runs the noise floor can't be measured and the result is inconclusive (exit 2).
 
