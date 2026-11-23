@@ -8,7 +8,7 @@ replaydiff runs a recording through your stack at two git refs, records the outp
 against a per-topic tolerance file, and exits 0 (same behavior within tolerance), 1 (regression) or 2 (can't tell:
 the replay is too noisy for the tolerance you set, or something failed). It is built to run in CI on pull requests.
 
-**Status: early development.** `replaydiff compare` works on recordings you already have (Twist, Odometry, Path, JointState and `/tf` pairs); the replay step and the GitHub Action are still planned. The design is in [docs/design.md](docs/design.md).
+**Status: early development.** `replaydiff compare` and `replaydiff init` (`--recording out.mcap [--base a.mcap b.mcap ...]` writes a starter `replaydiff.yaml`; with base runs the tolerances are measured, marked `# measured, review`) work on recordings you already have (Twist, Odometry, Path, JointState and `/tf` pairs); the replay step and the GitHub Action are still planned. The design is in [docs/design.md](docs/design.md).
 
 ## Install
 
